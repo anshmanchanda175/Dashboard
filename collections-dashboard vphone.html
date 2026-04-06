@@ -1,0 +1,2554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Collections Portfolio · 2W Review Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" crossorigin="anonymous"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+// Dynamic Leaflet loader — tries multiple CDNs
+(function(){
+  var cdns = [
+    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
+    'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
+    'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.min.js'
+  ];
+  var idx = 0;
+  function tryLoad() {
+    if (typeof L !== 'undefined') return; // already loaded
+    if (idx >= cdns.length) { console.warn('Leaflet: all CDNs failed, SVG fallback active'); return; }
+    var s = document.createElement('script');
+    s.src = cdns[idx];
+    s.crossOrigin = 'anonymous';
+    s.onload = function() { console.log('Leaflet loaded from:', cdns[idx]); };
+    s.onerror = function() { idx++; tryLoad(); };
+    document.head.appendChild(s);
+    idx++;
+  }
+  tryLoad();
+})();
+</script>
+<style>
+:root {
+  --green-900:#0d2b1a;--green-800:#1a4731;--green-700:#1e5c3a;--green-600:#226944;
+  --green-500:#2d8a5a;--green-400:#3daa6f;--green-200:#a7d7bc;--green-100:#d1edd9;--green-50:#f0faf3;
+  --amber-500:#d97706;--amber-100:#fef3c7;--amber-50:#fffbeb;
+  --red-500:#dc2626;--red-100:#fee2e2;--red-50:#fef2f2;
+  --blue-500:#2563eb;--blue-100:#dbeafe;
+  --slate-900:#0f172a;--slate-800:#1e293b;--slate-700:#334155;--slate-600:#475569;
+  --slate-500:#64748b;--slate-400:#94a3b8;--slate-300:#cbd5e1;--slate-200:#e2e8f0;
+  --slate-100:#f1f5f9;--slate-50:#f8fafc;--white:#ffffff;
+  --sidebar-w:230px;--topbar-h:52px;
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.06),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
+  --shadow-lg:0 12px 32px rgba(0,0,0,.10),0 4px 8px rgba(0,0,0,.05);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--slate-50);color:var(--slate-800);font-size:13px;line-height:1.5;overflow-x:hidden}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--slate-300);border-radius:10px}
+button{font-family:inherit;cursor:pointer;border:none;outline:none}
+input,select{font-family:inherit;outline:none}
+
+/* ─── LAYOUT ─── */
+#app{display:flex;min-height:100vh}
+#sidebar{width:var(--sidebar-w);min-height:100vh;background:var(--green-800);position:fixed;left:0;top:0;bottom:0;z-index:100;display:flex;flex-direction:column;overflow-y:auto;transition:transform .3s}
+#main{margin-left:var(--sidebar-w);flex:1;display:flex;flex-direction:column;min-height:100vh;min-width:0}
+#topbar{height:var(--topbar-h);background:var(--white);border-bottom:1px solid var(--slate-200);position:sticky;top:0;z-index:90;display:flex;align-items:center;gap:6px;padding:0 14px;box-shadow:var(--shadow-sm);overflow-x:auto;flex-shrink:0}
+#content{flex:1;padding:20px;overflow-x:hidden}
+
+/* Mobile */
+.hamburger{display:none;width:36px;height:36px;border-radius:var(--radius-sm);background:var(--green-800);color:var(--white);align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99}
+@media(max-width:1024px){
+  :root{--sidebar-w:0px}
+  #sidebar{transform:translateX(-240px);width:240px}
+  #sidebar.open{transform:translateX(0)}
+  .hamburger{display:flex}
+  .sidebar-overlay.open{display:block}
+  #main{margin-left:0}
+  .grid-2,.grid-60-40,.grid-65-35{grid-template-columns:1fr!important}
+  .grid-3{grid-template-columns:1fr 1fr!important}
+}
+@media(max-width:768px){
+  /* ── GLOBAL CONTAINMENT ── */
+  html,body{overflow-x:hidden!important;width:100%!important}
+  #app{max-width:100vw;overflow-x:hidden}
+  #main{overflow-x:hidden!important;max-width:100vw!important;width:100%!important}
+  #content{padding:12px 8px 70px;overflow-x:hidden!important;max-width:100%!important}
+  *{box-sizing:border-box!important}
+
+  /* ── TOP BAR ── */
+  #topbar{height:auto;min-height:44px;flex-wrap:wrap;padding:6px 8px;gap:5px;overflow-x:hidden}
+  .hamburger{width:32px;height:32px;font-size:16px}
+  .tb-filter{padding:3px 7px;font-size:10.5px;flex-shrink:0}
+  .tb-filter select{font-size:10.5px;max-width:90px}
+  .btn-download{padding:3px 8px;font-size:10.5px}
+  .tb-spacer{display:none}
+
+  /* ── KPI STRIP ── */
+  .kpi-strip{display:grid!important;grid-template-columns:repeat(2,1fr)!important;gap:6px!important;overflow-x:visible!important;padding-bottom:0}
+  .kpi-card{min-width:0!important;padding:8px 10px;flex:none!important}
+  .kpi-label{font-size:9px;margin-bottom:3px;letter-spacing:.3px}
+  .kpi-value{font-size:17px;margin-bottom:3px}
+  .kpi-delta{font-size:9.5px}
+
+  /* ── PAGE HEADER ── */
+  .page-header{margin-bottom:12px}
+  .page-header h1{font-size:17px}
+  .page-header p{font-size:11px}
+
+  /* ── ALL GRIDS → SINGLE COLUMN ── */
+  .grid-2,.grid-3,.grid-60-40,.grid-65-35{grid-template-columns:1fr!important;gap:8px!important}
+
+  /* ── CARDS ── */
+  .card{overflow:hidden!important;max-width:100%!important;border-radius:10px}
+  .card-header{padding:8px 10px 6px}
+  .card-header h3{font-size:12.5px}
+  .card-header p{font-size:10px}
+  .card-body{padding:8px 10px;max-width:100%!important;overflow-x:hidden}
+  .mb-18{margin-bottom:8px}
+
+  /* ── TABLES — scrollable within card boundaries ── */
+  .table-scroll{overflow-x:auto!important;-webkit-overflow-scrolling:touch;margin:0!important;padding:0!important;max-width:100%!important}
+  .card-body[style*="padding:0"]{overflow-x:auto!important}
+  .data-table{font-size:11px;min-width:480px;width:max-content}
+  .data-table th{padding:5px 6px;font-size:9px;white-space:nowrap}
+  .data-table td{padding:5px 6px;font-size:10.5px;white-space:nowrap}
+
+  /* ── CHARTS ── */
+  .chart-wrap{min-height:150px;max-width:100%!important}
+
+  /* ── TREND COMMENTARY ── */
+  .trend-commentary{padding:10px;max-width:100%!important;overflow:hidden}
+  .trend-card{padding:8px;margin-bottom:6px}
+  .trend-card h4{font-size:11.5px}
+  .trend-card p{font-size:10.5px;word-wrap:break-word;overflow-wrap:break-word}
+
+  /* ── INSIGHT ITEMS ── */
+  .insight-item{padding:8px 0}
+  .insight-item h4{font-size:11.5px;word-wrap:break-word;overflow-wrap:break-word}
+  .insight-item p{font-size:11px;word-wrap:break-word;overflow-wrap:break-word}
+
+  /* ── EXCEPTION CARDS ── */
+  .exc-card{padding:8px 10px;max-width:100%!important}
+  .exc-card h4{font-size:11.5px;word-wrap:break-word}
+  .exc-card p{font-size:10.5px;word-wrap:break-word;overflow-wrap:break-word}
+  .exc-card-actions{flex-wrap:wrap}
+
+  /* ── BUTTONS ── */
+  .btn-sm{padding:3px 7px;font-size:10px;white-space:nowrap}
+  .btn-green{padding:3px 7px;font-size:10px}
+  .back-btn{padding:4px 8px;font-size:10.5px}
+
+  /* ── BADGES ── */
+  .badge,.pct,.drr-pill{white-space:nowrap;font-size:9.5px;padding:2px 5px}
+
+  /* ── MAP ── */
+  #field-map{height:280px!important}
+
+  /* ── STATE CARDS GRID ── */
+  .state-grid{grid-template-columns:repeat(2,1fr)!important;gap:6px}
+  .state-card{padding:8px}
+  .state-card h4{font-size:11.5px}
+  .state-card .res{font-size:17px}
+  .state-card .meta{font-size:9.5px}
+
+  /* ── REGION BREADCRUMB ── */
+  .region-breadcrumb{font-size:11px;gap:3px;flex-wrap:wrap}
+  .region-breadcrumb .back-btn{padding:3px 7px;font-size:10px}
+
+  /* ── CONTACT CENTRE: AGENT DEEP DIVE ── */
+  .score-bar-row{gap:4px;max-width:100%!important}
+  .score-bar-label{width:85px;font-size:9.5px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .score-bar-track{min-width:40px}
+  .score-bar-num{font-size:10.5px;width:24px;flex-shrink:0}
+  .call-insight-card{padding:8px;overflow:hidden!important;max-width:100%!important}
+  .call-insight-card h5{font-size:10.5px;word-wrap:break-word;overflow-wrap:break-word}
+  .call-insight-card p{font-size:10.5px;word-wrap:break-word;overflow-wrap:break-word}
+  .call-meta{font-size:10px;word-wrap:break-word;overflow-wrap:break-word;flex-wrap:wrap}
+  .coaching-card{padding:8px;overflow:hidden!important;max-width:100%!important}
+  .coaching-card h5{font-size:11px}
+  .coaching-card p{font-size:10.5px;word-wrap:break-word;overflow-wrap:break-word}
+  /* Agent detail panel — force everything to fit */
+  #agent-detail-panel{max-width:100%!important;overflow:hidden!important}
+  #agent-detail-panel .card{max-width:100%!important;overflow:hidden!important}
+  #agent-detail-panel .card-body{overflow-x:hidden!important;overflow-y:auto!important;max-height:none!important;padding:8px!important}
+  #agent-detail-panel [style*="grid-template-columns:repeat(4"]{grid-template-columns:repeat(2,1fr)!important;gap:4px!important}
+  #agent-detail-panel [style*="max-height"]{max-height:none!important}
+  #agent-detail-panel div[style]{max-width:100%!important;box-sizing:border-box!important}
+  #agent-detail-panel p,#agent-detail-panel span,#agent-detail-panel div{overflow-wrap:break-word!important;word-break:break-word!important}
+  #agent-detail-panel .data-table{min-width:280px!important;font-size:10px}
+  #agent-detail-panel .table-scroll{overflow-x:auto!important;max-width:100%!important}
+  /* Agent KPI mini-boxes inside detail */
+  #agent-detail-panel [style*="text-align:center;padding:8px"]{padding:6px 2px!important}
+  #agent-detail-panel [style*="font-size:15px"]{font-size:13px!important}
+  #agent-detail-panel [style*="font-size:10px;color:var(--slate-500)"]{font-size:8.5px!important}
+
+  /* ── CHATBOT ── */
+  #chat-panel{width:calc(100vw - 16px)!important;max-width:100%!important;right:8px!important;left:8px!important;bottom:64px!important;height:62vh!important;max-height:460px;border-radius:12px}
+  #chat-fab{width:42px;height:42px;bottom:12px;right:8px}
+  #chat-fab svg{width:18px;height:18px}
+  .chat-header{padding:10px 12px}
+  .chat-header h4{font-size:12px}
+  .chat-header p{font-size:9.5px}
+  .chat-messages{padding:8px}
+  .chat-msg{max-width:92%;font-size:11.5px;padding:7px 9px;border-radius:10px}
+  .chat-input-row{padding:6px 8px}
+  .chat-input{font-size:11.5px;padding:6px 10px}
+  .chat-send{font-size:11px;padding:5px 10px}
+  .chat-chips{padding:5px 8px;gap:4px}
+  .chat-chip{font-size:10px;padding:3px 7px}
+
+  /* ── FLEX LAYOUTS ── */
+  .flex-between{gap:4px;flex-wrap:wrap}
+  .flex-gap{gap:4px;flex-wrap:wrap}
+
+  /* ── HOTSPOT ITEMS ── */
+  .hotspot-item{padding:8px 0}
+  .hotspot-item h5{font-size:11px}
+  .hotspot-item p{font-size:10.5px;word-wrap:break-word;overflow-wrap:break-word}
+
+  /* ── TOP/BOTTOM AGENCY ITEMS ── */
+  .top-bottom-item{padding:5px 0;gap:5px}
+  .top-bottom-item .name{font-size:11px}
+  .top-bottom-item .sub{font-size:9.5px}
+  .rank-num{width:20px;height:20px;font-size:10px}
+
+  /* ── AGENCY INSIGHT MODAL ── */
+  #agency-insight-modal>div{max-width:calc(100vw - 24px)!important;margin:8px;border-radius:12px}
+  #agency-insight-modal h3{font-size:14px!important}
+  #agency-insight-modal h4{font-size:12px!important}
+  #agency-insight-modal p{font-size:11.5px!important;word-wrap:break-word;overflow-wrap:break-word}
+
+  /* ── SECTION TITLES ── */
+  .section-title{font-size:14px}
+  .section-sub{font-size:11px}
+
+  /* ── MISC INLINE STYLES OVERRIDE ── */
+  [style*="display:grid;grid-template-columns:1fr 1fr;gap:0"]{grid-template-columns:1fr!important}
+  [style*="padding:14px 20px"]{padding:8px 10px!important}
+}
+
+@media(max-width:420px){
+  #content{padding:8px 6px 66px}
+  .kpi-strip{gap:5px!important}
+  .kpi-card{padding:7px 8px}
+  .kpi-value{font-size:15px}
+  .kpi-label{font-size:8.5px}
+  .kpi-delta{font-size:9px}
+  .page-header h1{font-size:15px}
+  .page-header p{font-size:10px}
+  .state-grid{grid-template-columns:1fr!important}
+  #topbar{gap:3px;padding:5px 6px}
+  .tb-filter{padding:2px 5px;font-size:9.5px}
+  .tb-filter select{font-size:9.5px;max-width:78px}
+  .data-table{min-width:380px}
+  .data-table th,.data-table td{padding:4px 5px;font-size:10px}
+  #agent-detail-panel [style*="grid-template-columns:repeat(4"]{grid-template-columns:repeat(2,1fr)!important}
+  #agent-detail-panel [style*="font-size:15px"]{font-size:12px!important}
+  .score-bar-label{width:70px;font-size:9px}
+  .score-bar-num{font-size:10px;width:22px}
+  #chat-panel{height:58vh!important;max-height:380px;bottom:58px!important}
+  .chat-msg{font-size:11px;padding:6px 8px}
+  .chat-chip{font-size:9.5px;padding:2px 6px}
+  .card-header h3{font-size:12px}
+  .btn-sm{font-size:9.5px;padding:3px 6px}
+  .back-btn{font-size:10px;padding:3px 7px}
+  #field-map{height:240px!important}
+  #agency-insight-modal>div{margin:4px}
+  #agency-insight-modal p{font-size:11px!important}
+}
+
+/* ─── SIDEBAR ─── */
+.sb-brand{padding:16px 14px 12px;border-bottom:1px solid rgba(255,255,255,.1)}
+.sb-badge{width:34px;height:34px;background:var(--white);color:var(--green-800);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;margin-bottom:8px}
+.sb-brand h2{color:var(--white);font-size:13px;font-weight:700;line-height:1.3}
+.sb-brand p{color:var(--green-200);font-size:10.5px;margin-top:2px}
+.sb-nav{padding:10px 8px;flex:1}
+.sb-nav-item{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:var(--radius-sm);cursor:pointer;margin-bottom:2px;color:var(--green-200);font-size:12.5px;font-weight:500;transition:all .15s}
+.sb-nav-item:hover{background:rgba(255,255,255,.08);color:var(--white)}
+.sb-nav-item.active{background:rgba(255,255,255,.15);color:var(--white);font-weight:600}
+.sb-nav-icon{width:16px;height:16px;opacity:.8;flex-shrink:0}
+.sb-insight{margin:10px 8px 14px;padding:12px;background:rgba(0,0,0,.2);border-radius:var(--radius-md);border:1px solid rgba(255,255,255,.08)}
+.sb-insight h4{color:var(--white);font-size:11.5px;font-weight:700;margin-bottom:4px}
+.sb-insight p{color:var(--green-200);font-size:11px;line-height:1.5}
+
+/* ─── TOPBAR ─── */
+.tb-filter{display:flex;align-items:center;gap:4px;padding:5px 10px;border:1.5px solid var(--slate-200);border-radius:20px;background:var(--white);color:var(--slate-700);font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.tb-filter:hover{border-color:var(--green-500);color:var(--green-700)}
+.tb-filter select{border:none;background:transparent;color:inherit;font-size:12px;font-weight:500;cursor:pointer}
+.tb-search{flex:1;min-width:140px;max-width:240px;display:flex;align-items:center;gap:6px;padding:5px 10px;border:1.5px solid var(--slate-200);border-radius:20px;background:var(--white);color:var(--slate-500)}
+.tb-search input{border:none;background:transparent;color:var(--slate-700);font-size:12px;width:100%}
+.tb-search input::placeholder{color:var(--slate-400)}
+.btn-apply{padding:5px 12px;border-radius:20px;border:1.5px solid var(--slate-300);background:var(--white);color:var(--slate-700);font-size:12px;font-weight:600;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.btn-apply:hover{border-color:var(--green-500);color:var(--green-700)}
+.btn-download{padding:5px 14px;border-radius:20px;background:var(--green-800);color:var(--white);font-size:12px;font-weight:600;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.btn-download:hover{background:var(--green-700)}
+.tb-spacer{flex:1;min-width:4px}
+
+/* ─── PAGE HEADER ─── */
+.page-header{margin-bottom:18px}
+.page-header h1{font-size:22px;font-weight:700;color:var(--slate-900);letter-spacing:-.3px}
+.page-header p{color:var(--slate-500);font-size:12.5px;margin-top:2px}
+
+/* ─── KPI CARDS ─── */
+.kpi-strip{display:flex;gap:10px;margin-bottom:18px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.kpi-card{background:var(--white);border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:14px 16px;min-width:135px;flex:1;box-shadow:var(--shadow-sm);transition:box-shadow .2s}
+.kpi-card:hover{box-shadow:var(--shadow-md)}
+.kpi-label{font-size:10.5px;color:var(--slate-500);font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px}
+.kpi-value{font-size:24px;font-weight:700;color:var(--slate-900);font-family:'Instrument Serif',serif;line-height:1;margin-bottom:6px}
+.kpi-delta{font-size:11px;font-weight:600}
+.kpi-delta.pos{color:var(--green-500)}.kpi-delta.neg{color:var(--red-500)}.kpi-delta.warn{color:var(--amber-500)}.kpi-delta.neu{color:var(--slate-500)}
+
+/* ─── CARDS ─── */
+.card{background:var(--white);border:1px solid var(--slate-200);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden}
+.card-header{padding:14px 16px 10px;border-bottom:1px solid var(--slate-100)}
+.card-header h3{font-size:14px;font-weight:700;color:var(--slate-900)}
+.card-header p{font-size:11.5px;color:var(--slate-500);margin-top:2px}
+.card-body{padding:14px 16px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
+.grid-60-40{display:grid;grid-template-columns:60fr 40fr;gap:14px;margin-bottom:14px}
+.grid-65-35{display:grid;grid-template-columns:65fr 35fr;gap:14px;margin-bottom:14px}
+.mb-18{margin-bottom:14px}
+
+/* ─── SCROLLABLE TABLES ─── */
+.table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.data-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.data-table th{padding:8px 10px;text-align:left;font-size:10.5px;font-weight:600;color:var(--slate-500);text-transform:uppercase;letter-spacing:.4px;border-bottom:1.5px solid var(--slate-200);background:var(--slate-50);position:sticky;top:0;z-index:1;white-space:nowrap}
+.data-table td{padding:8px 10px;border-bottom:1px solid var(--slate-100);color:var(--slate-700);vertical-align:middle;white-space:nowrap}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:var(--slate-50)}
+.data-table td:first-child{font-weight:600;color:var(--slate-900)}
+
+/* ─── BADGES ─── */
+.badge{display:inline-flex;align-items:center;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.badge-green{background:var(--green-100);color:var(--green-700)}
+.badge-red{background:var(--red-100);color:var(--red-500)}
+.badge-amber{background:var(--amber-100);color:var(--amber-500)}
+.badge-blue{background:var(--blue-100);color:var(--blue-500)}
+.badge-slate{background:var(--slate-100);color:var(--slate-600)}
+.pct{font-weight:700;padding:3px 7px;border-radius:6px;font-size:12px}
+.pct-green{background:var(--green-100);color:var(--green-700)}
+.pct-amber{background:var(--amber-100);color:var(--amber-500)}
+.pct-red{background:var(--red-100);color:var(--red-500)}
+
+/* ─── INSIGHTS ─── */
+.insight-item{padding:12px 0;border-bottom:1px solid var(--slate-100)}
+.insight-item:last-child{border-bottom:none}
+.insight-item h4{font-size:13px;font-weight:700;color:var(--slate-900);margin-bottom:3px}
+.insight-item p{font-size:12.5px;color:var(--slate-600);line-height:1.5}
+
+/* ─── TREND COMMENTARY ─── */
+.trend-commentary{background:var(--white);border:1px solid var(--slate-200);border-radius:var(--radius-lg);padding:16px;box-shadow:var(--shadow-sm)}
+.trend-commentary h3{font-size:14px;font-weight:700;color:var(--slate-900);margin-bottom:4px}
+.trend-commentary .sub{font-size:11.5px;color:var(--slate-500);margin-bottom:14px}
+.trend-card{padding:12px;background:var(--slate-50);border-radius:var(--radius-md);border-left:3px solid var(--green-500);margin-bottom:10px}
+.trend-card.warn{border-left-color:var(--amber-500)}
+.trend-card.neg{border-left-color:var(--red-500)}
+.trend-card h4{font-size:13px;font-weight:700;color:var(--slate-900);margin-bottom:3px}
+.trend-card p{font-size:12px;color:var(--slate-600);line-height:1.5}
+
+/* ─── EXCEPTION CARDS ─── */
+.exc-card{border-left:4px solid;border-radius:var(--radius-md);padding:12px 14px;background:var(--white);box-shadow:var(--shadow-sm);margin-bottom:10px}
+.exc-card.critical{border-color:var(--red-500);background:var(--red-50)}
+.exc-card.warn{border-color:var(--amber-500);background:var(--amber-50)}
+.exc-card.info{border-color:var(--blue-500);background:var(--blue-100)}
+.exc-card h4{font-size:13px;font-weight:700;color:var(--slate-900);margin-bottom:3px}
+.exc-card p{font-size:12px;color:var(--slate-600);line-height:1.5;margin-bottom:8px}
+.exc-card-actions{display:flex;gap:6px}
+.btn-sm{padding:5px 10px;border-radius:var(--radius-sm);font-size:11.5px;font-weight:600;transition:all .15s}
+.btn-outline{border:1.5px solid var(--slate-300);background:var(--white);color:var(--slate-700)}
+.btn-outline:hover{border-color:var(--green-500);color:var(--green-700)}
+.btn-green{background:var(--green-800);color:var(--white);border:1.5px solid transparent}
+.btn-green:hover{background:var(--green-700)}
+.btn-ghost{background:transparent;color:var(--slate-600);border:1.5px solid var(--slate-200)}
+.btn-ghost:hover{background:var(--slate-100)}
+
+/* ─── PROGRESS/SCORE BARS ─── */
+.prog-bar{height:6px;background:var(--slate-200);border-radius:10px;overflow:hidden;margin-top:3px}
+.prog-fill{height:100%;border-radius:10px;transition:width .5s ease}
+.prog-green{background:var(--green-500)}.prog-amber{background:var(--amber-500)}.prog-red{background:var(--red-500)}
+.score-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.score-bar-label{width:140px;font-size:11.5px;color:var(--slate-600);flex-shrink:0}
+.score-bar-track{flex:1;height:7px;background:var(--slate-200);border-radius:10px;overflow:hidden}
+.score-bar-fill{height:100%;border-radius:10px;background:var(--green-500);transition:width .6s ease}
+.score-bar-num{width:30px;text-align:right;font-size:12px;font-weight:700;color:var(--slate-800)}
+
+/* ─── REGION / FIELD ─── */
+.region-breadcrumb{display:flex;align-items:center;gap:6px;margin-bottom:12px;font-size:12.5px;color:var(--slate-500);flex-wrap:wrap}
+.region-breadcrumb span.active{color:var(--slate-900);font-weight:600}
+.region-breadcrumb .sep{color:var(--slate-300)}
+.state-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px}
+.state-card{background:var(--white);border:1.5px solid var(--slate-200);border-radius:var(--radius-md);padding:12px;cursor:pointer;transition:all .2s;box-shadow:var(--shadow-sm)}
+.state-card:hover{border-color:var(--green-500);box-shadow:var(--shadow-md);transform:translateY(-1px)}
+.state-card.red-state{border-color:#fca5a5;background:var(--red-50)}
+.state-card.amber-state{border-color:#fcd34d;background:var(--amber-50)}
+.state-card.green-state{border-color:#86efac;background:var(--green-50)}
+.state-card h4{font-size:13px;font-weight:700;color:var(--slate-900);margin-bottom:4px}
+.state-card .res{font-size:20px;font-weight:700;font-family:'Instrument Serif',serif}
+.state-card .meta{font-size:11px;color:var(--slate-500);margin-top:3px}
+#field-map{height:400px;border-radius:var(--radius-md);border:1px solid var(--slate-200);z-index:1}
+
+/* ─── AGENT DEEP DIVE ─── */
+.agent-row{cursor:pointer}.agent-row.selected td{background:var(--green-50)}
+.call-insight-card{background:var(--slate-50);border:1px solid var(--slate-200);border-radius:var(--radius-md);padding:12px;margin-bottom:8px}
+.call-insight-card h5{font-size:12px;font-weight:700;color:var(--slate-800);margin-bottom:6px}
+.call-meta{font-size:11.5px;color:var(--slate-600);margin-bottom:2px;display:flex;gap:5px;align-items:flex-start}
+.call-dot{width:6px;height:6px;border-radius:50%;margin-top:4px;flex-shrink:0}
+.call-dot.g{background:var(--green-500)}.call-dot.r{background:var(--red-500)}.call-dot.a{background:var(--amber-500)}
+.coaching-card{background:linear-gradient(135deg,var(--green-50),var(--blue-100));border:1px solid var(--green-200);border-radius:var(--radius-md);padding:14px;margin-bottom:10px}
+.coaching-card h5{font-size:12.5px;font-weight:700;color:var(--green-800);margin-bottom:6px}
+.coaching-card p{font-size:12px;color:var(--slate-700);line-height:1.5}
+.comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.comparison-cell{text-align:center;padding:8px;background:var(--slate-50);border-radius:6px}
+.comparison-cell .label{font-size:10px;color:var(--slate-500);margin-bottom:2px}
+.comparison-cell .val{font-size:16px;font-weight:700;font-family:'Instrument Serif',serif}
+
+/* ─── CHATBOT ─── */
+#chat-fab{position:fixed;bottom:24px;right:24px;z-index:500;width:50px;height:50px;border-radius:50%;background:var(--green-800);box-shadow:0 4px 20px rgba(26,71,49,.4);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;border:2px solid var(--green-600)}
+#chat-fab:hover{transform:scale(1.06);box-shadow:0 6px 28px rgba(26,71,49,.5)}
+#chat-fab svg{width:22px;height:22px;fill:var(--white)}
+#chat-panel{position:fixed;bottom:86px;right:24px;z-index:500;width:380px;height:520px;background:var(--white);border-radius:var(--radius-lg);box-shadow:var(--shadow-lg);border:1px solid var(--slate-200);display:flex;flex-direction:column;overflow:hidden;transform:scale(.95) translateY(10px);opacity:0;pointer-events:none;transition:all .2s}
+#chat-panel.open{transform:scale(1) translateY(0);opacity:1;pointer-events:all}
+.chat-header{padding:12px 14px;background:var(--green-800);color:var(--white);display:flex;align-items:center;justify-content:space-between}
+.chat-header h4{font-size:13px;font-weight:700}.chat-header p{font-size:10.5px;opacity:.7;margin-top:1px}
+.chat-close{background:none;border:none;color:var(--white);cursor:pointer;padding:4px;border-radius:4px;opacity:.7;transition:opacity .15s}
+.chat-close:hover{opacity:1}
+.chat-messages{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.chat-msg{max-width:88%;padding:9px 12px;border-radius:12px;font-size:12.5px;line-height:1.5}
+.chat-msg.bot{background:var(--slate-100);color:var(--slate-800);align-self:flex-start;border-bottom-left-radius:4px}
+.chat-msg.user{background:var(--green-800);color:var(--white);align-self:flex-end;border-bottom-right-radius:4px}
+.chat-chips{padding:6px 10px;display:flex;flex-wrap:wrap;gap:5px;border-top:1px solid var(--slate-100)}
+.chat-chip{padding:4px 10px;border-radius:16px;border:1.5px solid var(--green-200);background:var(--green-50);color:var(--green-700);font-size:11.5px;font-weight:500;cursor:pointer;transition:all .15s;white-space:nowrap}
+.chat-chip:hover{background:var(--green-100);border-color:var(--green-400)}
+.chat-input-row{padding:8px 10px;border-top:1px solid var(--slate-200);display:flex;gap:6px}
+.chat-input{flex:1;padding:8px 12px;border:1.5px solid var(--slate-200);border-radius:20px;font-size:12.5px;color:var(--slate-800);background:var(--white)}
+.chat-input:focus{border-color:var(--green-500)}
+.chat-send{padding:7px 14px;background:var(--green-800);color:var(--white);border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .15s}
+.chat-send:hover{background:var(--green-700)}
+.chat-typing{display:flex;gap:4px;align-items:center;padding:9px 12px}
+.chat-typing span{width:5px;height:5px;background:var(--slate-400);border-radius:50%;animation:bounce .9s infinite}
+.chat-typing span:nth-child(2){animation-delay:.15s}.chat-typing span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+.chat-error{color:var(--red-500);font-size:11.5px;padding:6px 12px;background:var(--red-50);border-radius:8px;margin:4px 0}
+
+/* ─── MISC ─── */
+.section-title{font-size:15px;font-weight:700;color:var(--slate-900);margin-bottom:4px}
+.section-sub{font-size:12px;color:var(--slate-500);margin-bottom:14px}
+.flex-between{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.flex-gap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tab-hidden{display:none!important}
+.drr-pill{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:12px;font-size:11px;font-weight:600;background:var(--blue-100);color:var(--blue-500)}
+.chart-wrap{position:relative;width:100%}
+.back-btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border:1.5px solid var(--slate-300);background:var(--white);color:var(--slate-700);border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;margin-bottom:12px}
+.back-btn:hover{border-color:var(--green-500);color:var(--green-700)}
+.hotspot-item{padding:10px 0;border-bottom:1px solid var(--slate-100)}
+.hotspot-item:last-child{border-bottom:none}
+.hotspot-item h5{font-size:12.5px;font-weight:700;color:var(--slate-900);margin-bottom:2px}
+.hotspot-item p{font-size:12px;color:var(--slate-600)}
+.rank-num{width:22px;height:22px;border-radius:50%;background:var(--slate-100);color:var(--slate-600);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.top-bottom-item{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--slate-100)}
+.top-bottom-item:last-child{border-bottom:none}
+.top-bottom-item .name{font-size:12.5px;font-weight:600;color:var(--slate-900)}
+.top-bottom-item .sub{font-size:11px;color:var(--slate-500)}
+.notify-dot{width:7px;height:7px;border-radius:50%;background:var(--red-500);display:inline-block;margin-left:3px}
+</style>
+</head>
+<body>
+<div id="app">
+<!-- ═══ SIDEBAR OVERLAY (mobile) ═══ -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- ═══ SIDEBAR ═══ -->
+<aside id="sidebar">
+  <div class="sb-brand">
+    <div class="sb-badge">2W</div>
+    <h2>Collections Portfolio</h2>
+    <p>2-Wheeler Review Dashboard</p>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-nav-item active" data-tab="portfolio" onclick="closeSidebar()">
+      <svg class="sb-nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 10a8 8 0 1116 0A8 8 0 012 10zm6.5-4.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3zm5 0a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM7 13a3 3 0 016 0H7z"/></svg>
+      Portfolio View
+    </div>
+    <div class="sb-nav-item" data-tab="contact" onclick="closeSidebar()">
+      <svg class="sb-nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/></svg>
+      Contact Centre
+    </div>
+    <div class="sb-nav-item" data-tab="field" onclick="closeSidebar()">
+      <svg class="sb-nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+      Field Performance
+    </div>
+    <div class="sb-nav-item" data-tab="agency" onclick="closeSidebar()">
+      <svg class="sb-nav-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
+      Agency View
+    </div>
+    <div class="sb-nav-item" data-tab="exception" onclick="closeSidebar()">
+      <svg class="sb-nav-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+      Exception Reporting <span class="notify-dot"></span>
+    </div>
+  </nav>
+  <div class="sb-insight">
+    <h4>AI Insight Layer</h4>
+    <p>Use the chat button to ask AI-powered performance questions, compare views, and find recovery opportunities.</p>
+  </div>
+</aside>
+
+<!-- ═══ MAIN ═══ -->
+<main id="main">
+  <div id="topbar">
+    <button class="hamburger" onclick="toggleSidebar()">☰</button>
+    <div class="tb-filter">
+      <svg width="12" height="12" viewBox="0 0 20 20" fill="#64748b"><path d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z"/></svg>
+      <select id="month-filter"><option>Apr 2026</option><option>Mar 2026</option><option>Feb 2026</option><option>Jan 2026</option></select>
+    </div>
+    <div class="tb-filter">
+      <select id="geo-filter"><option>All India</option><option>North</option><option>South</option><option>East</option><option>West</option></select>
+    </div>
+    <div class="tb-filter">
+      <select id="bucket-filter"><option>All Buckets</option><option>B0</option><option>B1</option><option>B2</option><option>B3</option><option>NPA</option></select>
+    </div>
+    <div class="tb-filter">
+      <select id="baseline-filter"><option>Vs Target</option><option>Vs Last Month</option><option>Vs Last Year</option></select>
+    </div>
+    <div class="tb-spacer"></div>
+    <button class="btn-download" onclick="downloadReport()">Download</button>
+  </div>
+  <div id="content">
+    <div id="tab-portfolio"></div>
+    <div id="tab-contact" class="tab-hidden"></div>
+    <div id="tab-field" class="tab-hidden"></div>
+    <div id="tab-agency" class="tab-hidden"></div>
+    <div id="tab-exception" class="tab-hidden"></div>
+  </div>
+</main>
+</div>
+
+<!-- CHATBOT -->
+<div id="chat-fab" onclick="toggleChat()">
+  <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+</div>
+<div id="chat-panel">
+  <div class="chat-header">
+    <div><h4>Portfolio AI Assistant</h4><p id="chat-context-label">Portfolio View · Apr 2026</p></div>
+    <button class="chat-close" onclick="toggleChat()">✕</button>
+  </div>
+  <div class="chat-messages" id="chat-messages"></div>
+  <div class="chat-chips" id="chat-chips"></div>
+  <div class="chat-input-row">
+    <input class="chat-input" id="chat-input" placeholder="Ask any portfolio question…" onkeydown="if(event.key==='Enter')sendChat()"/>
+    <button class="chat-send" onclick="sendChat()">Send</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════
+// MOCK DATA (preserved from original)
+// ════════════════════════════════════════
+const DATA = {
+  summary: {
+    pos: 186.4, collection_pct: 82.3, bounce_pct: 17.8, recovery: 24.6,
+    roll_forward: 10.9, roll_back: 6.2, ptp_conversion: 61.4, drr: 94.7,
+    forecast_gap: -2.1,
+    vs_lm: { pos: '+1.8%', col: '-2.1 pts', bounce: '-0.8 pts', rec: '+₹1.2Cr', rf: '-0.6 pts', rb: '+0.4 pts', ptp: '+1.4 pts', drr: '-0.3 pts' }
+  },
+  buckets: [
+    { b:'B0', pos:'₹52.4Cr', res:91.2, tgt:92.0, bounce:10.5, rf:4.1, rb:7.2, status:'Healthy', drr:96.1 },
+    { b:'B1', pos:'₹41.8Cr', res:83.9, tgt:85.0, bounce:15.6, rf:8.2, rb:5.8, status:'Watch', drr:95.3 },
+    { b:'B2', pos:'₹34.5Cr', res:72.4, tgt:76.0, bounce:22.8, rf:14.9, rb:4.1, status:'Stress', drr:93.8 },
+    { b:'B3', pos:'₹26.1Cr', res:64.8, tgt:68.0, bounce:27.1, rf:18.4, rb:2.9, status:'Stress', drr:91.2 },
+    { b:'NPA', pos:'₹31.6Cr', res:47.3, tgt:50.0, bounce:33.8, rf:21.6, rb:1.4, status:'High Risk', drr:88.4 },
+  ],
+  zones: [
+    { z:'South', pos:'₹48.2Cr', res:87.4, tgt:85.0, gap:'+2.4', bounce:13.2, drr:96.8 },
+    { z:'West', pos:'₹44.1Cr', res:85.8, tgt:84.0, gap:'+1.8', bounce:14.5, drr:95.9 },
+    { z:'North', pos:'₹52.6Cr', res:79.1, tgt:83.0, gap:'-3.9', bounce:20.6, drr:93.1 },
+    { z:'East', pos:'₹41.5Cr', res:76.3, tgt:80.0, gap:'-3.7', bounce:22.1, drr:92.4 },
+  ],
+  trends: {
+    months: ['Nov','Dec','Jan','Feb','Mar','Apr'],
+    collection: [76.0, 77.2, 78.5, 79.8, 81.1, 82.3],
+    bounce: [22.1, 21.4, 20.2, 19.4, 18.6, 17.8],
+    roll_fwd: [14.2, 13.8, 12.9, 12.1, 11.4, 10.9],
+    target: [84.4, 84.4, 84.4, 84.4, 84.4, 84.4],
+    drr: [93.2, 93.6, 94.0, 94.4, 95.0, 94.7],
+    b0_stock: [50.1, 50.8, 51.2, 51.6, 52.0, 52.4],
+    b1_stock: [39.2, 39.8, 40.4, 41.0, 41.4, 41.8],
+    b2_stock: [36.8, 36.2, 35.6, 35.2, 34.8, 34.5],
+    b3_stock: [28.4, 27.8, 27.2, 26.8, 26.4, 26.1],
+    npa_stock: [33.2, 32.8, 32.4, 32.0, 31.8, 31.6],
+  },
+  segments: [
+    { tag:'Strategic Defaulters', base:12400, res:48.6, contribution:14.1, action:'Legal + Senior Escalation' },
+    { tag:'Willing but Unable', base:18900, res:74.2, contribution:32.8, action:'Flexible Repayment Options' },
+    { tag:'Repeat Bounce', base:9800, res:59.4, contribution:18.6, action:'Field + Reminder Automation' },
+    { tag:'High Intent / Low Ticket', base:22100, res:86.8, contribution:21.5, action:'Self-Cure + SMS Push' },
+    { tag:'Non-Contactable', base:7600, res:41.2, contribution:13.0, action:'Field Visit Priority' },
+  ],
+  channels: {
+    labels: ['Self Cure','Contact Centre','Field','Agency','Legal / Esc.'],
+    this_m: [17, 29, 25, 22, 7],
+    last_m: [15, 31, 23, 24, 7],
+  },
+  insights: [
+    { head:'South is the strongest zone at 87.4% resolution.', body:'Driven by high self-cure rates in Tamil Nadu and Karnataka, and above-average PTP conversion in Chennai CC.' },
+    { head:'North and East remain below target — combined drag of 3.8 pts.', body:'North\'s issue is concentrated in B2/B3 with high PTP breakage from NorthEdge Collect and Stride Services.' },
+    { head:'B2/B3 roll-forward is the top structural risk.', body:'14.9% and 18.4% roll-forward means stock is aging into NPA. Tighter field intervention in UP, Delhi and Bengal is critical.' },
+    { head:'High Intent / Low Ticket is the fastest recovery lever.', body:'22,100 accounts at 86.8% resolution — these respond strongly to self-cure SMS and app payment reminders.' },
+    { head:'Portfolio trails target by 2.1 pts. Achievable if North recovers.', body:'If North returns to its Mar target, portfolio lands at 84.4%. Agency reallocation + field hotspot plan would close gap.' },
+    { head:'Action: Deploy emergency field team to Kanpur and Delhi South this week.', body:'Kanpur has 29.4% broken PTP — highest in portfolio. Delhi South has 14.2% LMPD breach. Assign 2 senior supervisors to each location for daily monitoring, call audit, and PTP 3-point lock enforcement. Target: 5-pt resolution improvement in 15 days.' },
+    { head:'Action: Scale self-cure SMS campaign nationally — start with North B0/B1.', body:'South\'s self-cure channel contributes 17% of resolution at near-zero cost. North B0/B1 accounts (₹52Cr+₹42Cr POS) are under-penetrated on digital. Launch payment-link SMS for 15,000 North B0/B1 accounts this week. Expected lift: 0.3–0.5 pts portfolio-wide.' },
+  ],
+  cc: {
+    kpi: { agents:338, attendance:86.2, login:80.1, rpc:40.6, ptp:25.2, broken_ptp:18.4, res:82.1, drr:93.8 },
+    centres: [
+      { c:'Mumbai CC', agents:126, att:88.0, login:82.0, rpc:41.0, ptp:26.0, res:83.8, retained:62.1, fresh:78.6, drr:94.2 },
+      { c:'Delhi CC', agents:114, att:79.0, login:74.0, rpc:35.0, ptp:21.0, res:77.2, retained:58.6, fresh:73.4, drr:92.1 },
+      { c:'Chennai CC', agents:98, att:91.0, login:86.0, rpc:46.0, ptp:29.0, res:86.1, retained:66.4, fresh:81.2, drr:95.6 },
+    ],
+    dispositions: [
+      { label:'No Contact', pct:34, color:'#1e5c3a' },
+      { label:'Call Back', pct:24, color:'#3b82f6' },
+      { label:'Promise to Pay', pct:22, color:'#dc2626' },
+      { label:'Refused', pct:12, color:'#d97706' },
+      { label:'Dispute / Query', pct:8, color:'#7c3aed' },
+    ],
+    agents: [
+      { id:'A001', name:'Priya Sharma', centre:'Chennai CC', att:95, login:91, rpc:52, ptp:34, bptp:8, res:91.2, drr:96.8, rank:1, pct:98, alloc:420, touched:380, contact_rate:90.5 },
+      { id:'A002', name:'Ravi Kumar', centre:'Mumbai CC', att:88, login:84, rpc:44, ptp:28, bptp:12, res:84.6, drr:93.2, rank:4, pct:82, alloc:380, touched:320, contact_rate:84.2 },
+      { id:'A003', name:'Sneha Patil', centre:'Mumbai CC', att:91, login:87, rpc:47, ptp:30, bptp:9, res:88.3, drr:95.1, rank:2, pct:95, alloc:400, touched:360, contact_rate:90.0 },
+      { id:'A004', name:'Arun Mehta', centre:'Delhi CC', att:72, login:68, rpc:28, ptp:16, bptp:22, res:64.1, drr:88.4, rank:18, pct:22, alloc:340, touched:210, contact_rate:61.8 },
+      { id:'A005', name:'Kavitha Nair', centre:'Chennai CC', att:93, login:89, rpc:50, ptp:32, bptp:7, res:89.7, drr:96.1, rank:3, pct:94, alloc:410, touched:370, contact_rate:90.2 },
+      { id:'A006', name:'Suresh Yadav', centre:'Delhi CC', att:68, login:62, rpc:24, ptp:13, bptp:28, res:58.2, drr:86.1, rank:22, pct:11, alloc:320, touched:180, contact_rate:56.3 },
+      { id:'A007', name:'Meena Joshi', centre:'Mumbai CC', att:84, login:80, rpc:38, ptp:24, bptp:15, res:79.4, drr:91.8, rank:9, pct:65, alloc:360, touched:290, contact_rate:80.6 },
+      { id:'A008', name:'Rajesh Pillai', centre:'Chennai CC', att:90, login:85, rpc:45, ptp:29, bptp:11, res:86.9, drr:94.7, rank:5, pct:80, alloc:390, touched:340, contact_rate:87.2 },
+      { id:'A009', name:'Deepak Verma', centre:'Mumbai CC', att:86, login:82, rpc:40, ptp:26, bptp:14, res:81.2, drr:92.4, rank:7, pct:72, alloc:370, touched:300, contact_rate:81.1 },
+      { id:'A010', name:'Pooja Desai', centre:'Mumbai CC', att:89, login:85, rpc:43, ptp:27, bptp:11, res:85.8, drr:93.8, rank:6, pct:78, alloc:385, touched:330, contact_rate:85.7 },
+      { id:'A011', name:'Vikram Singh', centre:'Delhi CC', att:78, login:74, rpc:32, ptp:19, bptp:19, res:71.4, drr:89.6, rank:14, pct:38, alloc:350, touched:250, contact_rate:71.4 },
+      { id:'A012', name:'Nisha Gupta', centre:'Delhi CC', att:82, login:78, rpc:36, ptp:22, bptp:17, res:75.8, drr:90.8, rank:11, pct:52, alloc:355, touched:270, contact_rate:76.1 },
+      { id:'A013', name:'Farhan Sheikh', centre:'Delhi CC', att:80, login:76, rpc:34, ptp:20, bptp:18, res:73.2, drr:90.2, rank:12, pct:45, alloc:345, touched:260, contact_rate:75.4 },
+      { id:'A014', name:'Lakshmi Iyer', centre:'Chennai CC', att:92, login:88, rpc:48, ptp:31, bptp:9, res:87.6, drr:95.4, rank:4, pct:85, alloc:400, touched:355, contact_rate:88.8 },
+      { id:'A015', name:'Sanjay Nair', centre:'Chennai CC', att:87, login:83, rpc:42, ptp:27, bptp:13, res:82.4, drr:93.1, rank:8, pct:68, alloc:375, touched:310, contact_rate:82.7 },
+    ],
+    agent_scores: {
+      'A001': { issue_id:9.2, issue_handling:8.9, communication:9.1, empathy:8.6, ptp_close:9.4, compliance:9.3 },
+      'A002': { issue_id:7.8, issue_handling:7.3, communication:7.9, empathy:7.5, ptp_close:7.9, compliance:8.2 },
+      'A003': { issue_id:8.6, issue_handling:8.5, communication:8.7, empathy:8.9, ptp_close:8.7, compliance:9.0 },
+      'A004': { issue_id:5.2, issue_handling:4.9, communication:5.3, empathy:6.1, ptp_close:5.1, compliance:6.8 },
+      'A005': { issue_id:9.0, issue_handling:8.8, communication:8.9, empathy:9.2, ptp_close:9.1, compliance:9.1 },
+      'A006': { issue_id:4.4, issue_handling:4.2, communication:4.6, empathy:5.5, ptp_close:4.6, compliance:5.9 },
+      'A007': { issue_id:7.2, issue_handling:6.9, communication:7.2, empathy:7.6, ptp_close:7.1, compliance:7.8 },
+      'A008': { issue_id:8.2, issue_handling:8.1, communication:8.3, empathy:8.3, ptp_close:8.5, compliance:8.8 },
+      'A009': { issue_id:7.4, issue_handling:7.1, communication:7.6, empathy:7.2, ptp_close:7.3, compliance:8.0 },
+      'A010': { issue_id:8.0, issue_handling:7.8, communication:8.2, empathy:8.1, ptp_close:8.1, compliance:8.5 },
+      'A011': { issue_id:6.2, issue_handling:5.8, communication:6.4, empathy:6.6, ptp_close:6.0, compliance:7.2 },
+      'A012': { issue_id:6.8, issue_handling:6.4, communication:7.0, empathy:7.1, ptp_close:6.6, compliance:7.6 },
+      'A013': { issue_id:6.4, issue_handling:6.0, communication:6.6, empathy:6.8, ptp_close:6.2, compliance:7.4 },
+      'A014': { issue_id:8.4, issue_handling:8.2, communication:8.6, empathy:8.5, ptp_close:8.6, compliance:8.9 },
+      'A015': { issue_id:7.6, issue_handling:7.4, communication:7.8, empathy:7.8, ptp_close:7.6, compliance:8.4 },
+    },
+    call_insights: {
+      'A001': [
+        { call:'Call 1 – 15 Apr, ₹12,400 account', tone:'warm', intent_id:true, obj_handled:true, next_step:true, outcome:'PTP secured', summary:'Customer initially hesitant citing cash-flow issues. Agent empathized, explored monthly budget, and proposed partial payment of ₹8,000 by 18th Apr with balance by 25th. Customer agreed. Agent confirmed date, amount, and payment mode — textbook PTP closure.', missed:'None — excellent handling.', coaching:'Use this as a coaching reference for team.' },
+        { call:'Call 2 – 13 Apr, ₹6,800 account', tone:'confident', intent_id:true, obj_handled:true, next_step:true, outcome:'Resolved on call', summary:'Customer disputed late fee. Agent validated from system, explained charges clearly, offered waiver on conditions of immediate payment. Customer paid ₹6,800 via UPI on call.', missed:'Could have upsold auto-debit setup.', coaching:'Add auto-debit pitch to resolution calls.' },
+      ],
+      'A004': [
+        { call:'Call 1 – 14 Apr, ₹8,400 account', tone:'flat', intent_id:false, obj_handled:false, next_step:false, outcome:'No resolution', summary:'Agent rushed opening, failed to identify why EMI was missed. Customer mentioned job loss — agent did not explore or offer restructure option. Call ended without PTP.', missed:'Should have explored restructure / moratorium options for job-loss cases.', coaching:'Needs NI training — role-play job-loss scenario with supervisor.' },
+        { call:'Call 2 – 11 Apr, ₹6,200 account', tone:'monotone', intent_id:true, obj_handled:false, next_step:false, outcome:'Broken PTP', summary:'Customer expressed willingness to pay but requested a 10-day extension. Agent denied without authority check and escalation path was missed. PTP broken.', missed:'Should have escalated to TL for approval of 10-day extension.', coaching:'Teach escalation protocol for extension requests.' },
+        { call:'Call 3 – 9 Apr, ₹12,100 account', tone:'nervous', intent_id:false, obj_handled:false, next_step:true, outcome:'Follow-up pending', summary:'Customer disputed the outstanding amount. Agent couldn\'t validate the statement and ended with vague follow-up. No resolution path secured.', missed:'Should have verified amount on system and walked customer through statement.', coaching:'Product knowledge + system navigation refresher needed.' },
+      ],
+      'A006': [
+        { call:'Call 1 – 13 Apr, ₹5,600 account', tone:'aggressive', intent_id:false, obj_handled:false, next_step:false, outcome:'Customer disconnected', summary:'Agent used pressure language immediately. Customer disconnected early. No NI completed. Compliance risk flagged.', missed:'Entire approach was wrong — needs de-escalation training.', coaching:'Immediate compliance review + de-escalation workshop.' },
+        { call:'Call 2 – 10 Apr, ₹9,800 account', tone:'flat', intent_id:true, obj_handled:false, next_step:false, outcome:'Broken PTP', summary:'Intent identified but no negotiation path explored. Customer said "I\'ll pay next week" — agent accepted without securing a date or reference. Broken PTP.', missed:'Must secure 3-point PTP lock: date + amount + mode.', coaching:'PTP closure skill workshop — compare with Priya Sharma calls.' },
+        { call:'Call 3 – 7 Apr, ₹7,200 account', tone:'flat', intent_id:false, obj_handled:false, next_step:false, outcome:'No contact', summary:'Non-contactable — agent marked as attempted but call lasted <12 seconds. Possible skip. Needs field verification.', missed:'Should have tried alternate number and marked for field visit.', coaching:'Call attempt hygiene — minimum 30-sec ring + alt-number protocol.' },
+      ],
+    },
+    coaching: {
+      'A001': {
+        strengths: 'Priya, you are the gold standard this cycle. Your issue identification is near-perfect — you catch the real reason behind non-payment within the first 30 seconds. Your PTP closure discipline (3-point lock every time) is why your broken PTP is just 8%. Your empathy opens doors that pressure never could. Keep it up.',
+        improvement: 'One area to sharpen: on resolved calls, you are not pitching auto-debit or digital payment setup. Adding this 15-second step could prevent repeat delinquency on accounts you have already saved. Also, your call wrap time is slightly above average — tighten post-call notes.',
+        top_comparison: 'You ARE the top performer. Your scores lead across all dimensions. The gap between you and the #2 agent (Sneha Patil) is widest on PTP Closure (+0.7) and Issue Identification (+0.6). Your call recordings should be the benchmark for the entire floor.',
+        training: 'No remedial training needed. Recommend: (1) Enroll in Team Lead readiness program. (2) Serve as coaching buddy for Arun Mehta and Suresh Yadav — 2 shadow sessions per week. (3) Lead one "Best Practices" huddle per week for the Chennai CC floor.'
+      },
+      'A002': {
+        strengths: 'Ravi, your compliance and script adherence are solid — you rarely miss a required disclosure or escalation flag. Your contact rate is healthy at 84%, and your attendance is reliable. You handle straightforward cases well and close them efficiently.',
+        improvement: 'Your issue handling and negotiation score (7.3) is where value is leaking. When customers raise objections or ask for extensions, you tend to stick to the script rather than exploring flexible options. Your broken PTP at 12% is above target — this means you are closing PTPs without enough commitment. Start using the 3-point lock consistently.',
+        top_comparison: 'Compared to Priya Sharma, your biggest gaps are in Issue Identification (7.8 vs 9.2) and PTP Closure (7.9 vs 9.4). Priya spends the first 30 seconds on open-ended questions — you jump to the payment ask too early. Her calls average 15 seconds longer on opening but 40 seconds shorter to resolution.',
+        training: 'Recommended: (1) Issue identification workshop — 2-day session focused on open-question techniques. (2) Listen to 5 of Priya Sharma\'s recorded calls, specifically the first 45 seconds. (3) Practice flexible repayment negotiation with TL in role-play for 30 min/day this week.'
+      },
+      'A003': {
+        strengths: 'Sneha, your empathy score (8.9) is the highest on the Mumbai floor — customers feel heard when they speak with you. Your communication is clear and professional, and your compliance is excellent at 9.0. You are the #2 agent overall and a genuine asset.',
+        improvement: 'Your one soft spot is issue handling when customers become confrontational. In 2 recent calls, when the customer raised their voice, your negotiation slowed down and you defaulted to "let me check with my manager." Build confidence to handle objections in real-time without escalating. Your broken PTP (9%) is good but can still drop to 6–7% with tighter date confirmation.',
+        top_comparison: 'You are very close to Priya Sharma across the board. The gap is narrowest on Empathy (-0.3) and Communication (-0.4). The widest gap is on PTP Closure (-0.7) — Priya always confirms payment mode in addition to date and amount. Adding that one step would close the gap.',
+        training: 'Recommended: (1) Assertive negotiation workshop — focus on maintaining empathy while being firm. (2) Shadow Priya on 2 live calls, specifically ones involving confrontational customers. (3) Self-review: re-listen to your own Call 3 from last week and identify 2 moments where you could have held ground.'
+      },
+      'A004': {
+        strengths: 'Arun, I want to start with what is working — your call discipline has improved slightly from last month, and when you do identify the issue correctly (Call 2 last week), you show you can move the conversation forward. Your attendance has also improved by 3% this month.',
+        improvement: 'However, the core gap is severe: your Issue Identification score is 5.2 — meaning in most calls, you are trying to close a PTP without understanding why the customer has not paid. This is why your resolution is 64.1% and broken PTP is 22%. In Call 1, the customer told you about a job loss and you ignored it completely. You must slow down, ask "what happened this month?", and listen before proposing any solution. Your communication score (5.3) also indicates you are rushing through calls — customers are not following your instructions.',
+        top_comparison: 'The gap vs Priya Sharma is significant across every dimension — widest on Issue Identification (5.2 vs 9.2 = -4.0 pts) and PTP Closure (5.1 vs 9.4 = -4.3 pts). Priya takes 30 extra seconds at the start to understand the situation; you skip this entirely. Her objection handling involves offering alternatives; you deny requests without checking authority. The good news: these are learnable skills, not personality traits.',
+        training: 'Mandatory training plan: (1) 3-day Issue Identification workshop — top priority, non-negotiable. (2) Shadow Priya Sharma for 2 live call sessions and document what she does differently in the first 60 seconds. (3) Daily role-play with supervisor: practice job-loss, extension-request, and dispute scenarios — 20 minutes/day for 2 weeks. (4) Supervisor to review your next 10 calls and give same-day feedback. Re-assessment in 15 days.'
+      },
+      'A005': {
+        strengths: 'Kavitha, you are consistently in the top 3. Your empathy score (9.2) is the highest across all centres — customers trust you quickly. Your issue identification is sharp, your PTP closure is disciplined, and your broken PTP at 7% is near-best. You set the standard for Chennai CC.',
+        improvement: 'Your only development area is minor: in complex dispute cases, you sometimes spend too long empathizing before pivoting to the resolution path. This increases your average call handle time. Practice the "acknowledge-pivot" technique — validate the emotion in one sentence, then redirect to the solution. Also, your auto-debit conversion on resolved calls is 0% — start pitching this.',
+        top_comparison: 'You are virtually tied with Priya Sharma. You actually lead on Empathy (+0.6) and match on Compliance. Priya edges ahead on Issue Identification (+0.2) and PTP Closure (+0.3). The difference is marginal — you are both benchmark agents. Consider co-leading a best-practices session together.',
+        training: 'No remedial training required. Growth path: (1) "Advanced Negotiation" elective — move from good to exceptional on complex high-value accounts. (2) Co-facilitate a monthly "Top Performer Playbook" session with Priya for mid-tier agents. (3) Start handling ₹15K+ accounts to build high-value portfolio experience.'
+      },
+      'A006': {
+        strengths: 'Suresh, I need to be direct with you, but let me start with one positive: when you do correctly identify customer intent (as in Call 2 last week), you show you understand the process. Your product knowledge on basic account queries is adequate.',
+        improvement: 'The situation is critical. Your compliance score (5.9) has flagged pressure language in Call 1 — this is a regulatory and reputational risk that cannot continue. Your issue identification (4.4) is the lowest on the floor. Your broken PTP at 28% means nearly 1 in 3 promises you secure will fail — because you accept "I will pay next week" without locking date, amount, and mode. Your contact rate at 56.3% is the weakest, and Call 3 showed possible call-skipping behavior (12-second call marked as attempted). This pattern must change immediately.',
+        top_comparison: 'The gap vs Priya Sharma is the largest in the team — Issue Identification (4.4 vs 9.2 = -4.8 pts), PTP Closure (4.6 vs 9.4 = -4.8 pts), Issue Handling (4.2 vs 8.9 = -4.7 pts). Priya never uses pressure language; she opens with empathy and still achieves 91.2% resolution. Her approach proves that being respectful is more effective, not less. The fundamental difference is skill, not effort — and skill can be taught.',
+        training: 'Immediate action plan — Performance Improvement Plan activated: (1) 1-week bench effective immediately — no customer calls until cleared. (2) Compliance re-certification: complete de-escalation and regulatory language module (mandatory pass). (3) Daily role-play with supervisor: 30 min/day on Issue Identification + PTP 3-point lock for 2 weeks. (4) Listen to 10 of Priya Sharma\'s calls and write a 1-page summary of techniques observed. (5) Re-assessment after 2 weeks — if scores do not improve to 6.0+ on all dimensions, further action will follow.'
+      },
+      'A007': {
+        strengths: 'Meena, you are a solid mid-tier performer. Your empathy (7.6) is above team average, your compliance is clean, and your attendance is stable. You handle routine cases well and customers generally respond positively to your tone.',
+        improvement: 'Your ceiling right now is issue handling and negotiation (6.9). When customers push back or request exceptions, you tend to default to "I will check and call back" rather than resolving on the call. This adds to your broken PTP (15%) — customers cool off between calls. Also, your PTP closure technique needs the 3-point lock. In your recent calls, you confirmed date but not amount or mode in 3 out of 5 PTPs.',
+        top_comparison: 'Your gap vs Priya Sharma is moderate and very closeable — Issue Identification (7.2 vs 9.2 = -2.0 pts) and PTP Closure (7.1 vs 9.4 = -2.3 pts) are the main areas. On Empathy, you are only -1.0 behind. You have the right temperament — you just need sharper technique on the issue-identification opening and the PTP closing sequence.',
+        training: 'Recommended development plan: (1) Issue Identification refresher — 1-day workshop, focus on the "open question first 30 seconds" method. (2) PTP closure drill: practice 3-point lock (date + amount + mode) with TL until it becomes automatic. (3) Listen to 3 Priya Sharma calls and 3 of your own back-to-back — note the differences in the first 45 seconds and last 30 seconds. (4) Target: move from 65th to 75th percentile within 30 days.'
+      },
+      'A008': {
+        strengths: 'Rajesh, you are performing well and consistently in the top 5. Your communication skills (8.3) are polished, your compliance is strong (8.8), and your PTP closure discipline is good. You bring reliability to the Chennai CC floor every day.',
+        improvement: 'Your development edge is Issue Identification (8.2 vs 9.2 for the best). In some calls, you identify the surface-level reason but miss the underlying cause — for example, a customer says "tight month" but you do not dig into whether it is temporary or structural. That distinction changes the solution you offer. Also, your empathy score (8.3) could rise if you acknowledged the customer emotion before jumping to the resolution path.',
+        top_comparison: 'You are close to the top on most dimensions. The largest gap vs Priya Sharma is on Issue Identification (-1.0) and PTP Closure (-0.9). These are refinement-level gaps, not fundamental skill gaps. On Compliance, you are only -0.5 behind — which is excellent.',
+        training: 'Growth plan: (1) Advanced Issue Identification session — learn to distinguish surface vs root causes in 2 questions. (2) Empathy micro-skill: practice the "I hear you" + pause technique before pivoting to solution — 5 min/day drill. (3) Target Rank #3 or better within 30 days. (4) Consider for senior agent or quality auditor track if improvement sustains.'
+      },
+      'A009': {
+        strengths: 'Deepak, you are dependable and consistent. Your compliance is clean at 8.0, you show up regularly, and your customers rarely complain about your conduct. You handle moderate-complexity cases without issue.',
+        improvement: 'You are in the mid-pack and need a push to break into the top quartile. Your issue identification (7.4) and PTP closure (7.3) are average — you identify obvious reasons but miss deeper causes. Your broken PTP at 14% shows PTPs are slipping because you are not locking all three confirmation points.',
+        top_comparison: 'Compared to Priya Sharma, your largest gaps are Issue Identification (-1.8) and PTP Closure (-2.1). She opens with open-ended empathy questions; you tend to open with "when can you pay?" — this skips the diagnostic step entirely.',
+        training: 'Plan: (1) Attend the Issue Identification refresher workshop. (2) Practice 3-point PTP lock with TL daily. (3) Listen to 3 of Priya Sharma recordings focusing on the opening 45 seconds. Target: 75th percentile in 30 days.'
+      },
+      'A010': {
+        strengths: 'Pooja, you are one of the stronger Mumbai agents. Your communication (8.2) and empathy (8.1) are both above average. You handle customer emotions well, and your resolution at 85.8% is solid. Your broken PTP at 11% is close to target.',
+        improvement: 'Your issue handling (7.8) is good but not great — in complex objection scenarios, you sometimes concede too quickly or offer discounts before exploring other options. Try to exhaust non-financial alternatives before reaching for waivers.',
+        top_comparison: 'You are within striking distance of the top. vs Priya Sharma: Issue Identification (-1.2), PTP Closure (-1.3). These are refinable gaps. Your Empathy is only -0.5 behind — very close.',
+        training: 'Growth plan: (1) Advanced negotiation techniques — learn the "explore before concede" framework. (2) Co-shadow with Sneha Patil on 2 live calls. (3) Target: top 5 ranking within 45 days.'
+      },
+      'A011': {
+        strengths: 'Vikram, your attendance has improved this month to 78% and your compliance is adequate. You follow the script correctly and do not have compliance flags. You handle simple B0/B1 cases reasonably well.',
+        improvement: 'Your issue identification (6.2) and issue handling (5.8) are dragging your resolution down to 71.4%. In complex cases, you tend to freeze or rush to a close without understanding the customer situation. Your broken PTP at 19% indicates weak commitment-securing. You need to slow down and ask diagnostic questions before proposing solutions.',
+        top_comparison: 'The gap vs Priya is wide — Issue Identification (-3.0), Issue Handling (-3.1), PTP Closure (-3.4). However, your Empathy gap (-2.0) is smaller, suggesting you can connect with customers when you try. The technical skills of diagnosis and closure are what need building.',
+        training: 'Mandatory: (1) 2-day Issue Identification + PTP Closure workshop. (2) Daily role-play with supervisor — 20 min on objection-handling scenarios. (3) Shadow Nisha Gupta (your peer) who handles similar cases but with better outcomes. (4) 15-day review checkpoint.'
+      },
+      'A012': {
+        strengths: 'Nisha, you have a good temperament for this work. Your empathy (7.1) is above the Delhi CC average, and customers do not disconnect on you — which is a real strength in this centre. Your compliance is clean.',
+        improvement: 'Issue handling (6.4) is your key gap — when customers object, you acknowledge well but struggle to redirect toward a resolution path. Your broken PTP at 17% shows promises are not being locked tightly. You confirmed date in most PTPs but missed amount or mode in nearly half.',
+        top_comparison: 'vs Priya: Issue Identification (-2.4), PTP Closure (-2.8). Your Empathy gap (-1.5) is moderate. The biggest opportunity is adding structured technique to your natural warmth — you have the relationship skills, now add the closing skills.',
+        training: 'Plan: (1) PTP closure masterclass — 3-point lock drill daily for 2 weeks. (2) Listen to 5 Priya Sharma call recordings, note the transition from empathy to resolution proposal. (3) Attend issue identification workshop. (4) Target: 60th percentile in 30 days.'
+      },
+      'A013': {
+        strengths: 'Farhan, you are reliable on attendance and your compliance score (7.4) is adequate. You handle the script well for standard cases and do not create compliance risk. Your contact rate has improved from last month.',
+        improvement: 'Issue identification (6.4) and issue handling (6.0) are both below target. You tend to follow a rigid script even when the customer situation calls for flexibility. Your broken PTP at 18% suggests you are accepting vague commitments. In 3 recent calls, you did not ask a single diagnostic question before proposing payment.',
+        top_comparison: 'vs Priya: Issue Identification (-2.8), Issue Handling (-2.9), PTP Closure (-3.2). The pattern is consistent — the diagnostic and closing phases of your calls are weak. However, your Communication gap (-2.5) suggests the delivery itself also needs work — practice speaking with more confidence and less script-dependence.',
+        training: 'Plan: (1) Issue Identification + Negotiation combined workshop — 3 days. (2) Daily confidence-building drills: practice the first 60 seconds of a call without reading the script. (3) Pair with Nisha Gupta for peer coaching. (4) Supervisor to review next 10 calls with same-day feedback.'
+      },
+      'A014': {
+        strengths: 'Lakshmi, you are performing excellently and are solidly in the top 5. Your communication (8.6), compliance (8.9), and PTP closure (8.6) are all strong. You are a role model on the Chennai floor alongside Priya and Kavitha.',
+        improvement: 'Your issue handling (8.2) is good but there is room to sharpen it — in calls with complex emotional situations (disputes, hardship cases), you sometimes resolve the transactional issue without fully addressing the emotional component. This occasionally leads to repeat calls on the same account.',
+        top_comparison: 'You are very close to Priya across the board — the gap is -0.8 on Issue Identification and -0.8 on PTP Closure. On Communication and Compliance, you are essentially equal. Closing this gap is about refining the first 30 seconds and the last 30 seconds of your calls.',
+        training: 'Growth plan: (1) Advanced empathy + issue diagnosis session. (2) Consider for Quality Auditor role — your compliance strength makes you ideal. (3) Co-lead one best-practices session per fortnight with Priya. (4) Target: sustain top 5 and build toward TL readiness.'
+      },
+      'A015': {
+        strengths: 'Sanjay, you are a solid contributor at Chennai CC. Your compliance (8.4) is strong, your empathy (7.8) is above average, and your contact rate at 82.7% shows good effort. You handle the mid-complexity portfolio well.',
+        improvement: 'Your issue identification (7.6) and PTP closure (7.6) are average for Chennai CC — which means they are above most Delhi/Mumbai agents, but below the high Chennai CC standard. You need to push into the top tier by asking one more diagnostic question per call and always confirming payment mode during PTP closure.',
+        top_comparison: 'vs Priya: Issue Identification (-1.6), PTP Closure (-1.8). On Empathy you are -0.8 behind. These are moderate gaps that are closeable with focused practice — you have the foundation, it is about adding 1–2 techniques to your current approach.',
+        training: 'Plan: (1) Issue Identification refresher — focus on root-cause vs surface-cause distinction. (2) PTP 3-point lock practice: daily drill for 1 week. (3) Listen to 3 Kavitha Nair recordings — her style may be easier to adapt than Priya\'s. (4) Target: 75th percentile within 30 days.'
+      },
+    }
+  },
+  field: {
+    kpi: { unpaid:28400, res:79.6, ptp:54.2, bptp:21.4, lmpd:8.9, no_fb:6.2, drr:91.4, unattended_10d:4820 },
+    stateCoords: {
+      'Tamil Nadu':   {lat:11.13,lng:78.66},'Karnataka':    {lat:15.32,lng:75.71},
+      'Maharashtra':  {lat:19.75,lng:75.71},'Gujarat':      {lat:22.26,lng:71.19},
+      'Rajasthan':    {lat:27.02,lng:74.22},'UP':           {lat:26.85,lng:80.91},
+      'Delhi':        {lat:28.70,lng:77.10},'West Bengal':  {lat:22.99,lng:87.85},
+      'Bihar':        {lat:25.10,lng:85.31},'Kerala':       {lat:10.85,lng:76.27},
+    },
+    states: [
+      { s:'Tamil Nadu', res:88.1, tgt:86.0, gap:'+2.1', ptp:62.1, bptp:14.2, pos:'₹22.1Cr', drr:95.4, unpaid:3200, no_fb:4.1, lmpd:5.2 },
+      { s:'Karnataka', res:85.3, tgt:84.0, gap:'+1.3', ptp:59.8, bptp:16.1, pos:'₹18.6Cr', drr:94.2, unpaid:2800, no_fb:5.4, lmpd:6.8 },
+      { s:'Maharashtra', res:82.9, tgt:84.0, gap:'-1.1', ptp:57.4, bptp:18.3, pos:'₹24.4Cr', drr:93.1, unpaid:3600, no_fb:6.8, lmpd:7.4 },
+      { s:'Gujarat', res:82.9, tgt:82.0, gap:'+0.9', ptp:59.8, bptp:20.6, pos:'₹16.2Cr', drr:92.8, unpaid:2400, no_fb:5.8, lmpd:7.1 },
+      { s:'Rajasthan', res:78.4, tgt:81.0, gap:'-2.6', ptp:51.3, bptp:23.8, pos:'₹14.1Cr', drr:90.6, unpaid:2100, no_fb:7.2, lmpd:9.6 },
+      { s:'UP', res:72.1, tgt:80.0, gap:'-7.9', ptp:44.6, bptp:29.4, pos:'₹31.8Cr', drr:87.2, unpaid:4800, no_fb:9.1, lmpd:12.4 },
+      { s:'Delhi', res:74.3, tgt:81.0, gap:'-6.7', ptp:46.8, bptp:27.2, pos:'₹19.4Cr', drr:88.6, unpaid:2900, no_fb:8.4, lmpd:14.2 },
+      { s:'West Bengal', res:71.8, tgt:78.0, gap:'-6.2', ptp:43.2, bptp:31.6, pos:'₹17.3Cr', drr:86.9, unpaid:2600, no_fb:10.2, lmpd:11.8 },
+      { s:'Bihar', res:68.4, tgt:76.0, gap:'-7.6', ptp:40.1, bptp:34.2, pos:'₹12.8Cr', drr:84.3, unpaid:1900, no_fb:12.4, lmpd:13.6 },
+      { s:'Kerala', res:89.1, tgt:86.0, gap:'+3.1', ptp:64.2, bptp:12.1, pos:'₹11.4Cr', drr:96.2, unpaid:1600, no_fb:3.2, lmpd:4.1 },
+    ],
+    districts: {
+      'Tamil Nadu': [ {d:'Chennai South',res:91.2,tgt:88,gap:'+3.2',pos:'₹6.4Cr',bounce:8.4,drr:96.1,ptp:65.4,bptp:11.2,unpaid:680,no_fb:3.2,lmpd:4.1}, {d:'Coimbatore',res:89.4,tgt:86,gap:'+3.4',pos:'₹5.2Cr',bounce:9.1,drr:95.3,ptp:63.2,bptp:12.8,unpaid:540,no_fb:3.8,lmpd:4.6}, {d:'Madurai',res:86.8,tgt:85,gap:'+1.8',pos:'₹4.1Cr',bounce:11.2,drr:94.1,ptp:60.1,bptp:14.6,unpaid:480,no_fb:4.2,lmpd:5.4}, {d:'Salem',res:84.2,tgt:84,gap:'+0.2',pos:'₹3.8Cr',bounce:13.4,drr:93.2,ptp:58.4,bptp:16.1,unpaid:420,no_fb:5.1,lmpd:6.2}, {d:'Tiruchirappalli',res:81.6,tgt:83,gap:'-1.4',pos:'₹2.6Cr',bounce:15.8,drr:91.8,ptp:55.2,bptp:18.4,unpaid:380,no_fb:5.8,lmpd:7.1} ],
+      'UP': [ {d:'Lucknow',res:76.4,tgt:82,gap:'-5.6',pos:'₹8.2Cr',bounce:22.1,drr:89.4,ptp:48.2,bptp:26.4,unpaid:1200,no_fb:8.4,lmpd:11.2}, {d:'Kanpur',res:71.2,tgt:80,gap:'-8.8',pos:'₹7.4Cr',bounce:26.8,drr:86.2,ptp:42.6,bptp:32.1,unpaid:1080,no_fb:10.2,lmpd:13.8}, {d:'Agra',res:68.9,tgt:78,gap:'-9.1',pos:'₹6.1Cr',bounce:29.4,drr:84.7,ptp:40.4,bptp:34.2,unpaid:920,no_fb:11.4,lmpd:14.6}, {d:'Varanasi',res:72.1,tgt:80,gap:'-7.9',pos:'₹5.8Cr',bounce:25.2,drr:87.1,ptp:44.8,bptp:28.6,unpaid:860,no_fb:9.8,lmpd:12.4}, {d:'Meerut',res:74.6,tgt:80,gap:'-5.4',pos:'₹4.3Cr',bounce:21.6,drr:88.9,ptp:47.2,bptp:24.8,unpaid:740,no_fb:8.1,lmpd:10.6} ],
+      'Delhi': [ {d:'Delhi South',res:71.2,tgt:81,gap:'-9.8',pos:'₹5.8Cr',bounce:28.4,drr:86.1,ptp:43.2,bptp:31.4,unpaid:820,no_fb:9.6,lmpd:14.2}, {d:'Delhi North',res:76.4,tgt:81,gap:'-4.6',pos:'₹4.9Cr',bounce:23.2,drr:89.2,ptp:48.6,bptp:24.8,unpaid:740,no_fb:7.8,lmpd:11.4}, {d:'Delhi West',res:74.8,tgt:80,gap:'-5.2',pos:'₹4.4Cr',bounce:24.6,drr:88.4,ptp:46.4,bptp:26.2,unpaid:680,no_fb:8.2,lmpd:12.8}, {d:'Delhi East',res:77.1,tgt:81,gap:'-3.9',pos:'₹4.3Cr',bounce:21.8,drr:90.1,ptp:50.2,bptp:22.6,unpaid:660,no_fb:7.4,lmpd:10.2} ],
+      'Kerala': [ {d:'Kochi',res:94.9,tgt:86,gap:'+8.9',pos:'₹3.2Cr',bounce:5.1,drr:98.2,ptp:68.4,bptp:8.2,unpaid:320,no_fb:2.4,lmpd:3.1}, {d:'Kozhikode',res:89.0,tgt:86,gap:'+3.0',pos:'₹2.8Cr',bounce:9.8,drr:95.1,ptp:64.2,bptp:11.6,unpaid:280,no_fb:3.6,lmpd:4.2}, {d:'Thiruvananthapuram',res:87.1,tgt:86,gap:'+1.1',pos:'₹2.4Cr',bounce:11.2,drr:94.2,ptp:62.1,bptp:13.4,unpaid:260,no_fb:4.1,lmpd:4.8}, {d:'Thrissur',res:84.3,tgt:86,gap:'-1.7',pos:'₹1.8Cr',bounce:14.6,drr:92.6,ptp:58.6,bptp:16.2,unpaid:220,no_fb:4.8,lmpd:5.6}, {d:'Kannur',res:83.5,tgt:86,gap:'-2.5',pos:'₹1.2Cr',bounce:15.9,drr:91.8,ptp:56.4,bptp:18.1,unpaid:180,no_fb:5.2,lmpd:6.2} ],
+      'Karnataka': [ {d:'Bengaluru',res:88.4,tgt:86,gap:'+2.4',pos:'₹6.8Cr',bounce:9.2,drr:95.6,ptp:62.4,bptp:13.2,unpaid:680,no_fb:4.2,lmpd:5.1}, {d:'Mysuru',res:84.2,tgt:83,gap:'+1.2',pos:'₹4.2Cr',bounce:12.8,drr:93.4,ptp:58.6,bptp:16.8,unpaid:480,no_fb:5.6,lmpd:6.8}, {d:'Hubli-Dharwad',res:82.1,tgt:83,gap:'-0.9',pos:'₹3.8Cr',bounce:14.2,drr:92.1,ptp:56.2,bptp:18.4,unpaid:420,no_fb:6.4,lmpd:7.4}, {d:'Mangaluru',res:86.6,tgt:85,gap:'+1.6',pos:'₹3.8Cr',bounce:10.4,drr:94.8,ptp:61.2,bptp:14.6,unpaid:380,no_fb:4.8,lmpd:5.8} ],
+      'Maharashtra': [ {d:'Mumbai',res:85.4,tgt:86,gap:'-0.6',pos:'₹8.2Cr',bounce:12.4,drr:94.2,ptp:60.2,bptp:16.4,unpaid:980,no_fb:5.8,lmpd:6.4}, {d:'Pune',res:84.2,tgt:85,gap:'-0.8',pos:'₹6.4Cr',bounce:13.6,drr:93.6,ptp:58.8,bptp:17.2,unpaid:820,no_fb:6.2,lmpd:7.1}, {d:'Nagpur',res:79.8,tgt:82,gap:'-2.2',pos:'₹5.1Cr',bounce:16.8,drr:91.4,ptp:54.2,bptp:21.4,unpaid:680,no_fb:7.8,lmpd:9.2}, {d:'Nashik',res:81.2,tgt:83,gap:'-1.8',pos:'₹4.7Cr',bounce:15.2,drr:92.2,ptp:56.4,bptp:19.6,unpaid:520,no_fb:7.2,lmpd:8.4} ],
+      'Gujarat': [ {d:'Ahmedabad',res:85.4,tgt:84,gap:'+1.4',pos:'₹5.8Cr',bounce:12.1,drr:94.2,ptp:62.4,bptp:18.2,unpaid:640,no_fb:5.2,lmpd:6.4}, {d:'Surat',res:83.2,tgt:82,gap:'+1.2',pos:'₹4.6Cr',bounce:13.8,drr:93.1,ptp:60.1,bptp:19.8,unpaid:520,no_fb:5.8,lmpd:6.8}, {d:'Vadodara',res:80.6,tgt:81,gap:'-0.4',pos:'₹3.4Cr',bounce:15.6,drr:91.8,ptp:57.4,bptp:22.4,unpaid:420,no_fb:6.4,lmpd:7.6}, {d:'Rajkot',res:79.4,tgt:80,gap:'-0.6',pos:'₹2.4Cr',bounce:16.8,drr:90.6,ptp:55.6,bptp:23.8,unpaid:320,no_fb:7.1,lmpd:8.2} ],
+      'Rajasthan': [ {d:'Jaipur',res:81.2,tgt:82,gap:'-0.8',pos:'₹5.2Cr',bounce:16.4,drr:92.1,ptp:54.2,bptp:21.6,unpaid:620,no_fb:6.8,lmpd:8.4}, {d:'Jodhpur',res:77.4,tgt:80,gap:'-2.6',pos:'₹3.8Cr',bounce:19.2,drr:90.2,ptp:50.8,bptp:24.2,unpaid:480,no_fb:7.6,lmpd:10.2}, {d:'Udaipur',res:76.2,tgt:80,gap:'-3.8',pos:'₹2.8Cr',bounce:20.6,drr:89.4,ptp:49.2,bptp:25.8,unpaid:380,no_fb:8.2,lmpd:11.1}, {d:'Kota',res:78.8,tgt:81,gap:'-2.2',pos:'₹2.3Cr',bounce:18.1,drr:90.8,ptp:52.1,bptp:23.4,unpaid:320,no_fb:7.2,lmpd:9.6} ],
+      'West Bengal': [ {d:'Kolkata',res:75.4,tgt:80,gap:'-4.6',pos:'₹6.2Cr',bounce:21.4,drr:88.6,ptp:46.2,bptp:28.4,unpaid:780,no_fb:9.4,lmpd:11.2}, {d:'Howrah',res:72.1,tgt:78,gap:'-5.9',pos:'₹4.1Cr',bounce:24.2,drr:86.4,ptp:42.8,bptp:31.2,unpaid:580,no_fb:10.8,lmpd:12.6}, {d:'Siliguri',res:68.4,tgt:76,gap:'-7.6',pos:'₹3.8Cr',bounce:27.8,drr:84.2,ptp:39.6,bptp:34.6,unpaid:480,no_fb:11.6,lmpd:13.4}, {d:'Durgapur',res:70.8,tgt:77,gap:'-6.2',pos:'₹3.2Cr',bounce:26.1,drr:85.8,ptp:41.4,bptp:32.8,unpaid:420,no_fb:10.2,lmpd:12.2} ],
+      'Bihar': [ {d:'Patna',res:72.4,tgt:78,gap:'-5.6',pos:'₹4.8Cr',bounce:24.6,drr:86.8,ptp:43.2,bptp:30.2,unpaid:620,no_fb:11.2,lmpd:12.8}, {d:'Gaya',res:66.8,tgt:74,gap:'-7.2',pos:'₹3.2Cr',bounce:28.4,drr:82.4,ptp:38.6,bptp:36.4,unpaid:440,no_fb:13.8,lmpd:14.6}, {d:'Muzaffarpur',res:64.2,tgt:74,gap:'-9.8',pos:'₹2.6Cr',bounce:31.2,drr:81.2,ptp:36.4,bptp:38.2,unpaid:380,no_fb:14.2,lmpd:15.4}, {d:'Bhagalpur',res:68.4,tgt:76,gap:'-7.6',pos:'₹2.2Cr',bounce:26.8,drr:84.6,ptp:41.8,bptp:32.6,unpaid:320,no_fb:12.6,lmpd:13.2} ],
+    },
+    pincodes: {
+      'Chennai South': [{p:'600001',res:94.1,pos:'₹1.2Cr',accounts:214,ptp:68.2,bptp:8.4,drr:97.2},{p:'600004',res:91.8,pos:'₹0.9Cr',accounts:168,ptp:66.4,bptp:9.6,drr:96.4},{p:'600007',res:88.4,pos:'₹0.8Cr',accounts:142,ptp:62.1,bptp:12.4,drr:95.1},{p:'600011',res:86.2,pos:'₹0.7Cr',accounts:128,ptp:60.2,bptp:14.2,drr:94.2}],
+      'Kanpur': [{p:'208001',res:62.4,pos:'₹2.1Cr',accounts:384,ptp:38.4,bptp:36.2,drr:82.4},{p:'208004',res:68.9,pos:'₹1.8Cr',accounts:312,ptp:42.1,bptp:30.8,drr:85.6},{p:'208011',res:71.2,pos:'₹1.4Cr',accounts:268,ptp:44.6,bptp:28.4,drr:87.2},{p:'208014',res:74.6,pos:'₹2.1Cr',accounts:346,ptp:47.2,bptp:25.6,drr:88.4}],
+      'Delhi South': [{p:'110001',res:68.4,pos:'₹1.4Cr',accounts:261,ptp:41.2,bptp:33.6,drr:84.2},{p:'110016',res:72.1,pos:'₹1.2Cr',accounts:218,ptp:44.8,bptp:29.4,drr:86.8},{p:'110017',res:69.8,pos:'₹1.1Cr',accounts:198,ptp:42.4,bptp:31.8,drr:85.4},{p:'110019',res:74.4,pos:'₹1.1Cr',accounts:182,ptp:46.6,bptp:27.2,drr:87.6}],
+      'Lucknow': [{p:'226001',res:78.4,pos:'₹2.4Cr',accounts:421,ptp:50.4,bptp:24.2,drr:90.2},{p:'226004',res:74.1,pos:'₹2.1Cr',accounts:378,ptp:47.2,bptp:27.4,drr:88.4},{p:'226010',res:71.8,pos:'₹1.7Cr',accounts:298,ptp:44.8,bptp:29.6,drr:86.8}],
+      'Bengaluru': [{p:'560001',res:92.4,pos:'₹2.1Cr',accounts:280,ptp:66.2,bptp:10.4,drr:96.8},{p:'560004',res:88.6,pos:'₹1.8Cr',accounts:240,ptp:62.4,bptp:13.2,drr:95.2},{p:'560011',res:85.2,pos:'₹1.6Cr',accounts:220,ptp:59.8,bptp:15.6,drr:93.8}],
+      'Kochi': [{p:'682001',res:96.2,pos:'₹1.2Cr',accounts:120,ptp:72.4,bptp:6.2,drr:98.4},{p:'682011',res:94.1,pos:'₹1.0Cr',accounts:108,ptp:70.2,bptp:7.8,drr:97.6},{p:'682018',res:91.8,pos:'₹0.8Cr',accounts:92,ptp:68.4,bptp:9.4,drr:96.8}],
+      'Kolkata': [{p:'700001',res:78.4,pos:'₹1.8Cr',accounts:280,ptp:48.6,bptp:26.4,drr:89.8},{p:'700012',res:74.2,pos:'₹1.6Cr',accounts:242,ptp:44.2,bptp:29.8,drr:87.6},{p:'700020',res:72.1,pos:'₹1.4Cr',accounts:218,ptp:42.4,bptp:31.2,drr:86.4},{p:'700032',res:76.8,pos:'₹1.4Cr',accounts:196,ptp:46.8,bptp:27.6,drr:88.6}],
+      'Patna': [{p:'800001',res:74.6,pos:'₹1.6Cr',accounts:240,ptp:45.2,bptp:28.4,drr:87.4},{p:'800004',res:71.2,pos:'₹1.4Cr',accounts:210,ptp:42.4,bptp:31.2,drr:85.6},{p:'800012',res:68.8,pos:'₹1.0Cr',accounts:170,ptp:40.1,bptp:33.6,drr:84.2}],
+    },
+    hotspots: [
+      { t:'Delhi South is the highest-risk field pocket.', b:'Resolution at 71.2% against 81% target. Elevated LMPD breach (14.2%) and 31% no-feedback rate.' },
+      { t:'Kanpur has the largest PTP leakage.', b:'29.4% broken PTP rate — largest in portfolio. Agents accepting vague verbal commitments.' },
+      { t:'Bihar contactability is critically low.', b:'Only 40.1% PTP rate suggests high non-contactable accounts. Field penetration needed.' },
+      { t:'UP overall needs urgent escalation.', b:'7.9 pts below target across 5 districts. Both allocation quality and execution hygiene below par.' },
+    ],
+  },
+  agencies: [
+    { n:'Accel Recovery', state:'Maharashtra', pos:'₹8.2Cr', res:78.1, tgt:81.0, ptp:58.2, bptp:19.2, drr:92.4, trend:'↓', complaints:14, billing:6.8, billing_trend:'↓', visits:342 },
+    { n:'NorthEdge Collect', state:'Delhi', pos:'₹7.4Cr', res:68.4, tgt:75.0, ptp:49.1, bptp:27.8, drr:88.6, trend:'↓', complaints:28, billing:5.2, billing_trend:'↓', visits:218 },
+    { n:'Stride Services', state:'UP', pos:'₹6.8Cr', res:66.9, tgt:73.0, ptp:46.5, bptp:29.6, drr:86.1, trend:'↓', complaints:32, billing:4.8, billing_trend:'↓', visits:196 },
+    { n:'Saffron Field Ops', state:'Tamil Nadu', pos:'₹5.9Cr', res:82.6, tgt:80.0, ptp:63.2, bptp:16.4, drr:94.8, trend:'↑', complaints:4, billing:5.4, billing_trend:'↑', visits:410 },
+    { n:'Delta Collect', state:'Karnataka', pos:'₹4.7Cr', res:80.1, tgt:79.0, ptp:61.6, bptp:17.8, drr:93.2, trend:'→', complaints:8, billing:4.1, billing_trend:'→', visits:328 },
+    { n:'Apex Collections', state:'Gujarat', pos:'₹4.2Cr', res:79.4, tgt:79.0, ptp:60.1, bptp:18.9, drr:92.8, trend:'→', complaints:9, billing:3.6, billing_trend:'→', visits:298 },
+    { n:'RapidResolve', state:'West Bengal', pos:'₹3.8Cr', res:72.8, tgt:76.0, ptp:52.4, bptp:24.6, drr:90.1, trend:'↓', complaints:18, billing:3.2, billing_trend:'↓', visits:184 },
+    { n:'SureStep Agency', state:'Bihar', pos:'₹3.4Cr', res:61.2, tgt:72.0, ptp:41.8, bptp:32.4, drr:84.6, trend:'↓', complaints:36, billing:2.4, billing_trend:'↓', visits:142 },
+    { n:'Bharat Resolve', state:'Rajasthan', pos:'₹2.9Cr', res:76.4, tgt:78.0, ptp:54.8, bptp:22.1, drr:91.2, trend:'→', complaints:11, billing:2.6, billing_trend:'→', visits:248 },
+    { n:'QuickRecov India', state:'Kerala', pos:'₹2.6Cr', res:88.4, tgt:84.0, ptp:66.2, bptp:11.8, drr:96.4, trend:'↑', complaints:2, billing:2.8, billing_trend:'↑', visits:368 },
+  ],
+  agency_insights: [
+    { head:'Stride Services and NorthEdge Collect are the portfolio\'s biggest agency drags.', body:'Combined allocation of ₹14.2Cr with resolution 6–8 pts below target. Recommend reducing combined allocation by ₹2.5Cr.' },
+    { head:'SureStep Agency in Bihar requires immediate intervention.', body:'Resolution at 61.2% — 10.8 pts below target. Broken PTP rate of 32.4% is the highest in portfolio.' },
+    { head:'Saffron Field Ops and QuickRecov India are benchmarks to scale.', body:'Both outperforming targets in southern markets. Could absorb additional ₹1.5–2Cr allocation each.' },
+    { head:'Agency reallocation could recover 0.8 pts portfolio-wide.', body:'Shifting ₹3Cr from bottom 3 to top 3 performers modelled to yield 0.7–0.9 pts improvement.' },
+    { head:'Action: Issue performance notice to SureStep and cap Stride allocation.', body:'SureStep Bihar has breached SLA for 3 months — formal notice with 15-day improvement window. Stride UP allocation to be capped at ₹5Cr until broken PTP drops below 25%. Reallocate freed ₹2.5Cr to Saffron and QuickRecov.' },
+    { head:'Action: Deploy Saffron\'s PTP protocol across NorthEdge and RapidResolve.', body:'Saffron\'s 3-point PTP confirmation + same-day IVR has broken PTP at 16.4% vs NorthEdge at 27.8%. Mandate this protocol for all North/East agencies within 7 days. Assign Saffron TL to conduct 2 training sessions.' },
+  ],
+  exceptions: [
+    { sev:'critical', title:'NPA Roll-Forward Spike — UP', detail:'21.6% roll-forward in NPA bucket, UP zone. ₹2.8Cr at write-off risk.', cat:'Geography / Bucket' },
+    { sev:'critical', title:'SureStep Agency Performance Breach', detail:'Resolution at 61.2% against 72% SLA. Third consecutive month.', cat:'Agency' },
+    { sev:'critical', title:'Delhi South LMPD Breach Rate', detail:'14.2% LMPD breach — highest in portfolio.', cat:'Field' },
+    { sev:'warn', title:'B2/B3 Roll-Forward — East Zone', detail:'14.9% and 18.4% roll-forward continuing for second month.', cat:'Bucket Trend' },
+    { sev:'warn', title:'Contact Centre RPC Below Threshold — Delhi CC', detail:'Delhi CC RPC at 35% against 42% benchmark.', cat:'Contact Centre' },
+    { sev:'warn', title:'PTP Conversion Gap — North Zone', detail:'North zone PTP conversion at 52.1% vs 62% target.', cat:'Channel' },
+    { sev:'info', title:'Forecast vs Target Gap: -2.1 pts', detail:'Achievable if North improves by 3 pts and B2/B3 roll-forward reduces by 2 pts.', cat:'Forecast' },
+    { sev:'info', title:'DRR Softening — NPA Bucket', detail:'NPA DRR dropped to 88.4%, down 1.8 pts vs last month.', cat:'DRR' },
+  ],
+};
+
+// ════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════
+let activeTab = 'portfolio';
+let agentView = false;
+let selectedAgent = null;
+let regionLevel = 'india';
+let selectedState = null;
+let selectedDistrict = null;
+let chatOpen = false;
+let chartInstances = {};
+let leafletMap = null;
+
+// ════════════════════════════════════════
+// FILTER ENGINE
+// ════════════════════════════════════════
+function getFilters() {
+  return {
+    month: document.getElementById('month-filter')?.value || 'Apr 2026',
+    geo: document.getElementById('geo-filter')?.value || 'All India',
+    bucket: document.getElementById('bucket-filter')?.value || 'All Buckets',
+    baseline: document.getElementById('baseline-filter')?.value || 'Vs Target',
+  };
+}
+
+// Month multipliers (simulate historical data going back)
+const MONTH_FACTORS = {
+  'Apr 2026': 1.0,
+  'Mar 2026': 0.986,  // slightly lower last month
+  'Feb 2026': 0.972,
+  'Jan 2026': 0.958,
+};
+
+// Zone mapping for geo filter
+const ZONE_STATES = {
+  'North': ['UP','Delhi','Rajasthan'],
+  'South': ['Tamil Nadu','Karnataka','Kerala'],
+  'East':  ['West Bengal','Bihar'],
+  'West':  ['Maharashtra','Gujarat'],
+};
+
+function getMonthFactor() {
+  const f = getFilters();
+  return MONTH_FACTORS[f.month] || 1.0;
+}
+
+function getMonthLabel() {
+  const f = getFilters();
+  return f.month.replace(' 2026','').substring(0,3);
+}
+
+// Apply multiplier to a value with slight randomness
+function applyFactor(val, factor, variance) {
+  const v = variance || 0.005;
+  return +(val * factor * (1 + (Math.random()*2-1)*v)).toFixed(1);
+}
+
+// Get filtered summary data
+function getFilteredSummary() {
+  const mf = getMonthFactor();
+  const f = getFilters();
+  const base = DATA.summary;
+  const d = {
+    pos: applyFactor(base.pos, mf, 0.01),
+    collection_pct: applyFactor(base.collection_pct, mf, 0.003),
+    bounce_pct: applyFactor(base.bounce_pct, 1 + (1-mf)*1.5, 0.003),
+    recovery: applyFactor(base.recovery, mf, 0.01),
+    roll_forward: applyFactor(base.roll_forward, 1 + (1-mf)*2, 0.003),
+    roll_back: applyFactor(base.roll_back, mf, 0.005),
+    ptp_conversion: applyFactor(base.ptp_conversion, mf, 0.003),
+    drr: applyFactor(base.drr, mf, 0.002),
+    forecast_gap: applyFactor(base.forecast_gap, 1 + (1-mf)*0.5, 0.01),
+  };
+  // Geo filter adjustments
+  if (f.geo === 'South') { d.collection_pct = +(d.collection_pct * 1.062).toFixed(1); d.bounce_pct = +(d.bounce_pct * 0.74).toFixed(1); d.drr = +(d.drr * 1.022).toFixed(1); d.roll_forward = +(d.roll_forward * 0.78).toFixed(1); }
+  if (f.geo === 'North') { d.collection_pct = +(d.collection_pct * 0.962).toFixed(1); d.bounce_pct = +(d.bounce_pct * 1.16).toFixed(1); d.drr = +(d.drr * 0.983).toFixed(1); d.roll_forward = +(d.roll_forward * 1.24).toFixed(1); }
+  if (f.geo === 'East') { d.collection_pct = +(d.collection_pct * 0.927).toFixed(1); d.bounce_pct = +(d.bounce_pct * 1.24).toFixed(1); d.drr = +(d.drr * 0.976).toFixed(1); d.roll_forward = +(d.roll_forward * 1.32).toFixed(1); }
+  if (f.geo === 'West') { d.collection_pct = +(d.collection_pct * 1.043).toFixed(1); d.bounce_pct = +(d.bounce_pct * 0.81).toFixed(1); d.drr = +(d.drr * 1.013).toFixed(1); d.roll_forward = +(d.roll_forward * 0.86).toFixed(1); }
+  // Bucket filter adjustments
+  if (f.bucket !== 'All Buckets') {
+    const bk = DATA.buckets.find(b => b.b === f.bucket);
+    if (bk) { d.collection_pct = bk.res; d.bounce_pct = bk.bounce; d.roll_forward = bk.rf; d.drr = bk.drr; }
+  }
+  return d;
+}
+
+// Get filtered zones
+function getFilteredZones() {
+  const mf = getMonthFactor();
+  const f = getFilters();
+  let zones = DATA.zones.map(z => ({...z, res: applyFactor(z.res, mf, 0.003), bounce: applyFactor(z.bounce, 1+(1-mf)*1.5, 0.003), drr: applyFactor(z.drr, mf, 0.002)}));
+  if (f.geo !== 'All India') {
+    zones = zones.filter(z => z.z === f.geo);
+  }
+  return zones;
+}
+
+// Get filtered CC KPIs
+function getFilteredCCKPI() {
+  const mf = getMonthFactor();
+  const base = DATA.cc.kpi;
+  return {
+    agents: base.agents,
+    attendance: applyFactor(base.attendance, mf, 0.003),
+    login: applyFactor(base.login, mf, 0.003),
+    rpc: applyFactor(base.rpc, mf, 0.004),
+    ptp: applyFactor(base.ptp, mf, 0.004),
+    broken_ptp: applyFactor(base.broken_ptp, 1+(1-mf)*1.5, 0.004),
+    res: applyFactor(base.res, mf, 0.003),
+    drr: applyFactor(base.drr, mf, 0.002),
+  };
+}
+
+// Filtered Field KPIs — responds to month, geo, bucket, baseline
+function getFilteredFieldKPI() {
+  const mf = getMonthFactor();
+  const f = getFilters();
+  const base = DATA.field.kpi;
+  const d = {
+    unpaid: Math.round(base.unpaid * mf * (1 + (Math.random()-0.5)*0.01)),
+    res: applyFactor(base.res, mf, 0.003),
+    ptp: applyFactor(base.ptp, mf, 0.004),
+    bptp: applyFactor(base.bptp, 1+(1-mf)*1.5, 0.004),
+    lmpd: applyFactor(base.lmpd, 1+(1-mf)*1.8, 0.005),
+    no_fb: applyFactor(base.no_fb, 1+(1-mf)*1.2, 0.005),
+    drr: applyFactor(base.drr, mf, 0.002),
+    unattended_10d: Math.round(base.unattended_10d * (1+(1-mf)*2) * (1 + (Math.random()-0.5)*0.01)),
+  };
+  // Geo adjustments — field is geography-heavy
+  if (f.geo === 'South') { d.res = +(d.res*1.08).toFixed(1); d.ptp = +(d.ptp*1.12).toFixed(1); d.bptp = +(d.bptp*0.68).toFixed(1); d.lmpd = +(d.lmpd*0.6).toFixed(1); d.drr = +(d.drr*1.03).toFixed(1); d.unpaid = Math.round(d.unpaid*0.6); d.unattended_10d = Math.round(d.unattended_10d*0.45); }
+  if (f.geo === 'North') { d.res = +(d.res*0.94).toFixed(1); d.ptp = +(d.ptp*0.88).toFixed(1); d.bptp = +(d.bptp*1.28).toFixed(1); d.lmpd = +(d.lmpd*1.4).toFixed(1); d.drr = +(d.drr*0.97).toFixed(1); d.unpaid = Math.round(d.unpaid*1.3); d.unattended_10d = Math.round(d.unattended_10d*1.45); }
+  if (f.geo === 'East') { d.res = +(d.res*0.90).toFixed(1); d.ptp = +(d.ptp*0.82).toFixed(1); d.bptp = +(d.bptp*1.42).toFixed(1); d.lmpd = +(d.lmpd*1.5).toFixed(1); d.drr = +(d.drr*0.96).toFixed(1); d.unpaid = Math.round(d.unpaid*0.8); d.unattended_10d = Math.round(d.unattended_10d*1.6); }
+  if (f.geo === 'West') { d.res = +(d.res*1.04).toFixed(1); d.ptp = +(d.ptp*1.06).toFixed(1); d.bptp = +(d.bptp*0.88).toFixed(1); d.lmpd = +(d.lmpd*0.85).toFixed(1); d.drr = +(d.drr*1.01).toFixed(1); d.unpaid = Math.round(d.unpaid*0.9); d.unattended_10d = Math.round(d.unattended_10d*0.7); }
+  // Bucket adjustments
+  if (f.bucket === 'B0') { d.res = +(d.res*1.14).toFixed(1); d.bptp = +(d.bptp*0.55).toFixed(1); d.lmpd = +(d.lmpd*0.5).toFixed(1); d.ptp = +(d.ptp*1.18).toFixed(1); d.unattended_10d = Math.round(d.unattended_10d*0.3); }
+  if (f.bucket === 'B1') { d.res = +(d.res*1.05).toFixed(1); d.bptp = +(d.bptp*0.78).toFixed(1); d.lmpd = +(d.lmpd*0.7).toFixed(1); d.unattended_10d = Math.round(d.unattended_10d*0.6); }
+  if (f.bucket === 'B2') { d.res = +(d.res*0.91).toFixed(1); d.bptp = +(d.bptp*1.18).toFixed(1); d.lmpd = +(d.lmpd*1.2).toFixed(1); d.unattended_10d = Math.round(d.unattended_10d*1.2); }
+  if (f.bucket === 'B3') { d.res = +(d.res*0.82).toFixed(1); d.bptp = +(d.bptp*1.38).toFixed(1); d.lmpd = +(d.lmpd*1.5).toFixed(1); d.ptp = +(d.ptp*0.78).toFixed(1); d.unattended_10d = Math.round(d.unattended_10d*1.5); }
+  if (f.bucket === 'NPA') { d.res = +(d.res*0.60).toFixed(1); d.bptp = +(d.bptp*1.62).toFixed(1); d.lmpd = +(d.lmpd*1.8).toFixed(1); d.ptp = +(d.ptp*0.65).toFixed(1); d.drr = +(d.drr*0.94).toFixed(1); d.unattended_10d = Math.round(d.unattended_10d*2.1); }
+  return d;
+}
+
+// Filtered Agency KPIs
+function getFilteredAgencyKPI() {
+  const mf = getMonthFactor();
+  const f = getFilters();
+  const agencies = DATA.agencies;
+  // Compute base averages
+  let filteredAgencies = agencies;
+  if (f.geo !== 'All India') {
+    const zoneStates = ZONE_STATES[f.geo] || [];
+    filteredAgencies = agencies.filter(a => zoneStates.includes(a.state));
+    if (filteredAgencies.length === 0) filteredAgencies = agencies;
+  }
+  const count = filteredAgencies.length;
+  const avgRes = applyFactor(filteredAgencies.reduce((s,a)=>s+a.res,0)/count, mf, 0.003);
+  const avgBptp = applyFactor(filteredAgencies.reduce((s,a)=>s+a.bptp,0)/count, 1+(1-mf)*1.5, 0.004);
+  const totalAlloc = applyFactor(filteredAgencies.reduce((s,a)=>s+parseFloat(a.pos.replace(/[₹Cr]/g,'')),0), mf, 0.005);
+  const avgDrr = applyFactor(filteredAgencies.reduce((s,a)=>s+a.drr,0)/count, mf, 0.002);
+  return { count, avgRes, avgBptp, totalAlloc, avgDrr, filteredAgencies };
+}
+
+// Baseline delta helper: computes delta text and color class
+function deltaText(currentVal, metricKey, higherIsBetter) {
+  const f = getFilters();
+  const bl = f.baseline;
+  let refVal, label;
+  if (bl === 'Vs Target') {
+    // Use fixed targets
+    const targets = { collection_pct:84.4, bounce_pct:15.0, roll_forward:8.5, ptp_conversion:65.0, drr:96.0, recovery:26.0, pos:190.0, roll_back:7.0, attendance:90.0, login:85.0, rpc:45.0, ptp:28.0, broken_ptp:14.0, res:84.0, field_res:82.0, field_ptp:58.0, field_bptp:18.0, field_lmpd:7.0, field_no_fb:5.0, field_drr:93.0, field_unattended:3500, agency_res:78.2, agency_bptp:18.0, agency_alloc:48.0, agency_drr:93.0 };
+    refVal = targets[metricKey] || currentVal;
+    label = 'vs target';
+  } else if (bl === 'Vs Last Month') {
+    refVal = currentVal / (MONTH_FACTORS['Mar 2026'] || 0.986) * (MONTH_FACTORS['Apr 2026'] || 1.0) * 0.986;
+    label = 'vs LM';
+  } else {
+    refVal = currentVal * 0.94; // ~6% lower last year
+    label = 'vs SDLY';
+  }
+  const diff = +(currentVal - refVal).toFixed(1);
+  const isGood = higherIsBetter ? diff >= 0 : diff <= 0;
+  const sign = diff >= 0 ? '+' : '';
+  const cls = isGood ? 'pos' : 'neg';
+  return { text: `${sign}${diff} ${label}`, cls };
+}
+
+function kpiCard(label, value, metricKey, higherIsBetter) {
+  if (typeof higherIsBetter === 'string') {
+    // Legacy call format — just use old style
+    const dir = higherIsBetter;
+    return `<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div><div class="kpi-delta ${dir}">${metricKey}</div></div>`;
+  }
+  const numVal = parseFloat(String(value).replace(/[₹%Cr,]/g,''));
+  const dt = deltaText(numVal, metricKey, higherIsBetter);
+  return `<div class="kpi-card"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div><div class="kpi-delta ${dt.cls}">${dt.text}</div></div>`;
+}
+
+// ════════════════════════════════════════
+// SIDEBAR MOBILE
+// ════════════════════════════════════════
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebar-overlay').classList.toggle('open'); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('sidebar-overlay').classList.remove('open'); }
+
+// ════════════════════════════════════════
+// TAB SWITCHING
+// ════════════════════════════════════════
+document.querySelectorAll('.sb-nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.sb-nav-item').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    activeTab = el.dataset.tab;
+    document.querySelectorAll('#content > div').forEach(d => d.classList.add('tab-hidden'));
+    document.getElementById('tab-' + activeTab).classList.remove('tab-hidden');
+    renderTab(activeTab);
+    updateChatContext();
+  });
+});
+
+// Listen for filter changes — auto re-render
+['month-filter','geo-filter','bucket-filter','baseline-filter'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => {
+    // Force re-render of current tab
+    document.querySelectorAll('#content > div').forEach(d => d.dataset.rendered = '');
+    renderTab(activeTab);
+    showToast(`Filters updated: ${getFilters().month} · ${getFilters().geo} · ${getFilters().bucket} · ${getFilters().baseline}`);
+  });
+});
+
+function renderTab(t) {
+  const el = document.getElementById('tab-' + t);
+  // Always re-render to reflect filter changes (remove caching)
+  el.dataset.rendered = '1';
+  if (t === 'portfolio') renderPortfolio();
+  if (t === 'contact') renderContact();
+  if (t === 'field') renderField();
+  if (t === 'agency') renderAgency();
+  if (t === 'exception') renderException();
+}
+
+// ════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════
+function pctBadge(v, tgt) {
+  const cls = v >= tgt ? 'pct-green' : v >= tgt - 3 ? 'pct-amber' : 'pct-red';
+  return `<span class="pct ${cls}">${v}%</span>`;
+}
+function statusBadge(s) {
+  const map = { Healthy:'badge-green', Watch:'badge-amber', Stress:'badge-red', 'High Risk':'badge-red' };
+  return `<span class="badge ${map[s]||'badge-slate'}">${s}</span>`;
+}
+function gapColor(g) {
+  const n = parseFloat(g);
+  return n >= 0 ? 'color:var(--green-600);font-weight:700' : n >= -2 ? 'color:var(--amber-500);font-weight:700' : 'color:var(--red-500);font-weight:700';
+}
+function destroyChart(id) {
+  if (chartInstances[id]) { try { chartInstances[id].destroy(); } catch(e){} delete chartInstances[id]; }
+}
+
+// ════════════════════════════════════════
+// GEO-FILTERED PORTFOLIO HELPERS
+// ════════════════════════════════════════
+// Zone multipliers for bucket-level metrics
+const GEO_BUCKET_MULT = {
+  'All India': {res:1, bounce:1, rf:1, drr:1, pos:1},
+  'South':     {res:1.06, bounce:0.74, rf:0.72, drr:1.022, pos:0.26},
+  'North':     {res:0.96, bounce:1.16, rf:1.28, drr:0.983, pos:0.28},
+  'East':      {res:0.93, bounce:1.24, rf:1.35, drr:0.976, pos:0.22},
+  'West':      {res:1.04, bounce:0.82, rf:0.84, drr:1.013, pos:0.24},
+};
+
+function getGeoBuckets(geo) {
+  const m = GEO_BUCKET_MULT[geo] || GEO_BUCKET_MULT['All India'];
+  return DATA.buckets.map(b => {
+    const posNum = parseFloat(b.pos.replace(/[₹Cr]/g,''));
+    const adjPos = geo === 'All India' ? b.pos : '₹'+(posNum * m.pos).toFixed(1)+'Cr';
+    return {
+      b: b.b, pos: adjPos,
+      res: +(b.res * m.res).toFixed(1), tgt: b.tgt,
+      bounce: +(b.bounce * m.bounce).toFixed(1),
+      rf: +(b.rf * m.rf).toFixed(1),
+      rb: b.rb, drr: +(b.drr * m.drr).toFixed(1), status: b.status
+    };
+  });
+}
+
+function getGeoTrends(geo) {
+  const t = DATA.trends;
+  const m = GEO_BUCKET_MULT[geo] || GEO_BUCKET_MULT['All India'];
+  // Zone-specific targets
+  const tgtMap = {'All India':84.4,'South':85.0,'North':83.0,'East':80.0,'West':84.0};
+  const tgt = tgtMap[geo] || 84.4;
+  return {
+    collection: t.collection.map(v => +(v * m.res).toFixed(1)),
+    bounce: t.bounce.map(v => +(v * m.bounce).toFixed(1)),
+    roll_fwd: t.roll_fwd.map(v => +(v * m.rf).toFixed(1)),
+    target: t.months.map(() => tgt),
+  };
+}
+
+function getGeoBucketStock(geo) {
+  const m = GEO_BUCKET_MULT[geo] || GEO_BUCKET_MULT['All India'];
+  const base = [52.4, 41.8, 34.5, 26.1, 31.6];
+  const data = base.map(v => +(v * m.pos).toFixed(1));
+  const labels = ['B0','B1','B2','B3','NPA'].map((b,i) => b+': ₹'+data[i]+'Cr');
+  return { labels, data };
+}
+
+function getGeoCommentary(geo) {
+  const commentaries = {
+    'All India': `
+      <div class="trend-card"><h4>Collections improved consistently from 76.0% to 82.3% over six months.</h4><p>Improvement is steady, but target attainment is still uneven across B2/B3 and North/East.</p></div>
+      <div class="trend-card warn"><h4>Bounce has come down materially.</h4><p>Portfolio is benefiting from better contactability and a cleaner allocation mix in West and South.</p></div>
+      <div class="trend-card neg"><h4>Roll-forward remains the pressure point in stressed buckets.</h4><p>B2 at 14.9% and B3 at 18.4% — stock is aging into NPA. Tighter field intervention critical.</p></div>
+      <div class="trend-card"><h4>DRR softened slightly this month.</h4><p>94.7% vs 95.0% last month. NPA bucket DRR decline is the primary driver.</p></div>`,
+    'South': `
+      <div class="trend-card"><h4>South is the benchmark zone at 87.4% resolution.</h4><p>Consistently above target driven by strong self-cure in Tamil Nadu/Karnataka and Chennai CC excellence.</p></div>
+      <div class="trend-card"><h4>Bounce is the lowest across zones at 13.2%.</h4><p>Clean allocation mix and high first-contact resolution are keeping bounce well below portfolio average.</p></div>
+      <div class="trend-card"><h4>Roll-forward is well controlled at ~7.8%.</h4><p>B2/B3 leakage is minimal. Saffron Field Ops and QuickRecov are executing tight field follow-ups.</p></div>
+      <div class="trend-card"><h4>DRR at 96.8% is the strongest in portfolio.</h4><p>Daily momentum is building. South can absorb additional allocation to scale this performance.</p></div>`,
+    'North': `
+      <div class="trend-card neg"><h4>North is the primary drag at 79.1% — 3.9 pts below target.</h4><p>UP and Delhi are the weakest states. NorthEdge Collect and Stride Services are underperforming significantly.</p></div>
+      <div class="trend-card neg"><h4>Bounce at 20.6% is the highest zone.</h4><p>Accounts are bouncing back from PTP to non-payment at an alarming rate — PTP quality issue.</p></div>
+      <div class="trend-card neg"><h4>Roll-forward is elevated at ~14% in B2/B3.</h4><p>Stock is aging into NPA faster than any other zone. Emergency field intervention needed in UP and Delhi.</p></div>
+      <div class="trend-card warn"><h4>DRR at 93.1% is declining.</h4><p>Daily recovery momentum is weakening. Without intervention, April target will be missed by 4+ pts.</p></div>`,
+    'East': `
+      <div class="trend-card neg"><h4>East is 3.7 pts below target at 76.3% resolution.</h4><p>Bihar and West Bengal are both significantly underperforming. Contactability is the core issue.</p></div>
+      <div class="trend-card neg"><h4>Bounce at 22.1% — second worst zone.</h4><p>High non-contactable base in Bihar (40.1% PTP) is driving repeat bounce cycles.</p></div>
+      <div class="trend-card warn"><h4>B3/NPA roll-forward is the worst at ~15.8%.</h4><p>Stock is aging rapidly. SureStep Agency in Bihar is 10.8 pts below SLA — urgent intervention needed.</p></div>
+      <div class="trend-card warn"><h4>DRR at 92.4% is the weakest zone.</h4><p>Skip-tracing and field penetration are the priority levers to restore daily recovery momentum.</p></div>`,
+    'West': `
+      <div class="trend-card"><h4>West is performing well at 85.8% — 1.8 pts above target.</h4><p>Maharashtra and Gujarat are both contributing. Accel Recovery and Apex Collections are steady performers.</p></div>
+      <div class="trend-card"><h4>Bounce at 14.5% is well below portfolio average.</h4><p>Good PTP discipline and field follow-up are keeping bounce controlled.</p></div>
+      <div class="trend-card"><h4>Roll-forward is manageable at ~9.2%.</h4><p>B2/B3 leakage is moderate. Focused attention on Nagpur and Nashik districts could reduce this further.</p></div>
+      <div class="trend-card"><h4>DRR at 95.9% is strong and stable.</h4><p>West is the second-best zone for daily momentum after South. Maintain current strategy.</p></div>`,
+  };
+  return commentaries[geo] || commentaries['All India'];
+}
+
+function getGeoInsights(geo) {
+  const insightSets = {
+    'All India': DATA.insights.slice(0,4).concat([
+      {head:'North is the worst-performing zone at 79.1% — dragged by UP and Delhi.', body:'UP is 7.9 pts below target across all 5 districts with the highest broken PTP in portfolio (29.4% in Kanpur). Delhi South has the worst LMPD breach at 14.2%. NorthEdge Collect and Stride Services are the two weakest agencies. Immediate agency reallocation and field escalation needed.'},
+      {head:'South and West are outperforming — South leads at 87.4%, West at 85.8%.', body:'South is driven by Tamil Nadu (88.1%) and Kerala (89.1%) with strong self-cure rates and Chennai CC at 86.1% resolution. West benefits from stable agency performance in Maharashtra and Gujarat. South\'s playbook — tight PTP discipline, digital-first self-cure, and Saffron/QuickRecov agency quality — is the model to replicate in underperforming zones.'},
+    ]),
+    'South': [
+      {head:'South is the strongest zone at 87.4% resolution.', body:'Driven by high self-cure rates in Tamil Nadu and Karnataka, and above-average PTP conversion in Chennai CC.'},
+      {head:'Kerala is the top-performing state at 89.1%.', body:'QuickRecov India in Kerala is the best agency at 88.4%. Consider scaling allocation here.'},
+      {head:'B0 resolution at 96.7% — near-perfect in South.', body:'Self-cure and digital channels are highly effective in South. Minimal field intervention needed for B0.'},
+      {head:'Opportunity: Scale South playbook to other zones.', body:'Chennai CC processes, Saffron field discipline, and self-cure SMS campaigns can be replicated in West.'},
+      {head:'Action: Increase QuickRecov Kerala allocation by ₹1.5Cr.', body:'Kerala can absorb more — QuickRecov has capacity and 88.4% resolution. Route B1/B2 overflow from Maharashtra here. Expected gain: 0.3 pts on South portfolio.'},
+      {head:'Action: Pilot Tiruchirappalli district intervention for B2/B3.', body:'Tiruchirappalli is 1.4 pts below target — the weakest TN district. Deploy 1 additional field supervisor + daily PTP audit for 2 weeks. This is a quick fix before it deteriorates further.'},
+    ],
+    'North': [
+      {head:'North is the primary portfolio drag at -3.9 pts.', body:'UP at -7.9 pts and Delhi at -6.7 pts are the two worst-performing states in the portfolio.'},
+      {head:'NorthEdge Collect and Stride Services are underperforming.', body:'Combined ₹14.2Cr allocation with 6-8 pts below target. Reallocation to top agencies recommended.'},
+      {head:'Delhi South is the hottest risk pocket.', body:'71.2% resolution, 14.2% LMPD breach, 31% no-feedback. Immediate supervisor redeployment needed.'},
+      {head:'B2/B3 roll-forward is the structural NPA risk.', body:'14.9% and 18.4% roll-forward in North is 3-4 pts worse than South. Field containment critical.'},
+      {head:'Action: Redeploy 3 supervisors to Kanpur + Agra this week.', body:'Kanpur (29.4% BPTP) and Agra (-9.1 pts gap) are the two worst districts in the portfolio. Each needs a dedicated supervisor for daily broken PTP review, call audit, and field visit scheduling. Target: 3-pt resolution lift in 15 days.'},
+      {head:'Action: Cap NorthEdge allocation at ₹5Cr, redirect ₹2.4Cr to Saffron.', body:'NorthEdge Delhi is at 68.4% vs 75% target with 27.8% BPTP. Reducing allocation forces focus on higher-quality cases. Saffron can absorb the freed amount in adjacent southern geographies at 82.6% resolution.'},
+    ],
+    'East': [
+      {head:'East trails target by 3.7 pts at 76.3%.', body:'Bihar (68.4%) and West Bengal (71.8%) are both significantly below target.'},
+      {head:'Bihar contactability crisis — 40.1% PTP rate.', body:'High non-contactable base requires skip-tracing and field visit priority before any CC intervention.'},
+      {head:'SureStep Agency is in SLA breach.', body:'Third consecutive month at 61.2% vs 72% SLA. Performance notice and potential reallocation to RapidResolve.'},
+      {head:'NPA aging is accelerating in East.', body:'B3→NPA roll-forward at 21.6% in Bihar. Legal escalation for ₹2.8Cr at write-off risk.'},
+      {head:'Action: Launch skip-trace campaign for 1,900 Bihar non-contactables.', body:'Bihar has 1,900 unpaid accounts with near-zero contactability. Initiate bulk skip-trace via alternate number sourcing + field verification. Even 20% recovery on this base = ₹0.8Cr additional collection this cycle.'},
+      {head:'Action: Issue formal SLA breach notice to SureStep within 48 hours.', body:'Three consecutive months below 72% SLA. Notify SureStep of 15-day improvement window. Begin parallel onboarding of RapidResolve as backup for Bihar portfolio. If no improvement, reallocate ₹3.4Cr fully.'},
+    ],
+    'West': [
+      {head:'West is above target at 85.8% resolution.', body:'Maharashtra and Gujarat are both contributing positively. Steady performance across agencies.'},
+      {head:'Accel Recovery in Maharashtra needs tightening.', body:'78.1% vs 81% target — slightly below. Broken PTP at 19.2% suggests PTP discipline gap.'},
+      {head:'Gujarat is a quiet outperformer at 82.9%.', body:'Apex Collections is stable. Ahmedabad and Surat districts are both above target.'},
+      {head:'Opportunity: Nagpur and Nashik are soft spots.', body:'Both 1-2 pts below target. Focused field refresh could bring West to 87%+ resolution.'},
+      {head:'Action: Deploy PTP 3-point protocol at Accel Recovery immediately.', body:'Accel\'s 19.2% BPTP is the highest in West. Mandate date+amount+mode confirmation on every PTP. Assign Saffron TL to run 1-day training workshop at Accel Mumbai office this week.'},
+      {head:'Action: Increase field visit frequency in Nagpur and Nashik.', body:'Both districts are 1-2 pts below target with moderate BPTP. Adding 2 field visits/week per agent in these districts can close the gap within 30 days. Low cost, high ROI intervention.'},
+    ],
+  };
+  return insightSets[geo] || insightSets['All India'];
+}
+
+// ════════════════════════════════════════
+// PORTFOLIO (Enhanced with Trend Charts)
+// ════════════════════════════════════════
+function renderPortfolio() {
+  const el = document.getElementById('tab-portfolio');
+  const d = getFilteredSummary();
+  const f = getFilters();
+  const monthLabel = f.month;
+  el.innerHTML = `
+<div class="page-header"><h1>Portfolio View</h1><p>Leadership cockpit for 2W collections performance — ${monthLabel} · ${f.geo} · ${f.bucket}</p></div>
+<div class="kpi-strip">
+  ${kpiCard('POS','₹'+d.pos+'Cr','pos',true)}
+  ${kpiCard('Collection %',d.collection_pct+'%','collection_pct',true)}
+  ${kpiCard('Bounce %',d.bounce_pct+'%','bounce_pct',false)}
+  ${kpiCard('Recovery','₹'+d.recovery+'Cr','recovery',true)}
+  ${kpiCard('Roll Forward',d.roll_forward+'%','roll_forward',false)}
+  ${kpiCard('PTP Conversion',d.ptp_conversion+'%','ptp_conversion',true)}
+  ${kpiCard('DRR',d.drr+'%','drr',true)}
+  ${kpiCard('Forecast Gap',d.forecast_gap+' pts','Vs Apr target','neg')}
+</div>
+
+<!-- Bucket Table + AI Highlights -->
+<div class="grid-60-40">
+  <div class="card">
+    <div class="card-header flex-between"><div><h3>Bucket-wise Monthly Comparison — ${f.geo}</h3><p>Current month vs target and flow stress indicators</p></div></div>
+    <div class="card-body table-scroll" style="padding:0">
+      <table class="data-table">
+        <thead><tr><th>Bucket</th><th>POS</th><th>Res %</th><th>Target</th><th>Bounce</th><th>Roll Fwd</th><th>DRR</th><th>Action Lens</th></tr></thead>
+        <tbody>
+        ${getGeoBuckets(f.geo).map(b=>{
+          const actionLens = b.rf > 14 ? 'Reduce leakage fast' : 'Tighten recovery mix';
+          return `<tr>
+          <td><strong>${b.b}</strong></td><td>${b.pos}</td>
+          <td>${pctBadge(b.res,b.tgt)}</td><td>${b.tgt}%</td>
+          <td style="${b.bounce>20?'color:var(--red-500)':b.bounce>15?'color:var(--amber-500)':'color:var(--green-600)'};font-weight:600">${b.bounce}%</td>
+          <td style="color:var(--amber-500);font-weight:600">${b.rf}%</td>
+          <td><span class="drr-pill">${b.drr}%</span></td>
+          <td style="font-size:11.5px;color:var(--slate-600)">${actionLens}</td>
+        </tr>`;}).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="trend-commentary">
+    <h3>AI Trend Commentary — ${f.geo}</h3>
+    <div class="sub">Machine-generated narrative from current trend movement</div>
+    ${getGeoCommentary(f.geo)}
+  </div>
+</div>
+
+<!-- Collections Trend + Bucket Stock Distribution -->
+<div class="grid-2">
+  <div class="card mb-18">
+    <div class="card-header"><h3>Collections Trend — ${f.geo}</h3><p>Month-on-month movement in collection %, bounce and roll-forward</p></div>
+    <div class="card-body"><div class="chart-wrap" style="height:220px"><canvas id="collections-trend"></canvas></div></div>
+  </div>
+  <div class="card mb-18">
+    <div class="card-header"><h3>Bucket Stock Distribution — ${f.geo}</h3><p>Portfolio stock by delinquency bucket (₹Cr)</p></div>
+    <div class="card-body"><div class="chart-wrap" style="height:220px"><canvas id="bucket-pie"></canvas></div></div>
+  </div>
+</div>
+
+<!-- Zone + Channel -->
+<div class="grid-60-40">
+  <div class="card mb-18">
+    <div class="card-header"><h3>Zone-wise Performance</h3><p>Resolution, bounce, target gap and DRR by zone</p></div>
+    <div class="card-body table-scroll" style="padding:0">
+      <table class="data-table">
+        <thead><tr><th>Zone</th><th>POS</th><th>Resolution</th><th>Target</th><th>Gap</th><th>Bounce</th><th>DRR</th></tr></thead>
+        <tbody>
+        ${DATA.zones.map(z=>`<tr>
+          <td>${z.z}</td><td>${z.pos}</td>
+          <td>${pctBadge(z.res,parseFloat(z.tgt))}</td><td>${z.tgt}%</td>
+          <td style="${gapColor(z.gap)}">${z.gap} pts</td>
+          <td style="${parseFloat(z.bounce)>20?'color:var(--red-500)':'color:var(--slate-700)'}">${z.bounce}%</td>
+          <td><span class="drr-pill">${z.drr}%</span></td>
+        </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card mb-18">
+    <div class="card-header"><h3>Channel Allocation</h3><p>Current vs last month contribution</p></div>
+    <div class="card-body"><div class="chart-wrap" style="height:200px"><canvas id="channel-bar"></canvas></div></div>
+  </div>
+</div>
+
+<!-- Bucket Stock Trend + DRR Trend -->
+<div class="grid-2">
+  <div class="card mb-18">
+    <div class="card-header"><h3>Bucket Stock Movement</h3><p>6-month stock trend by bucket (₹Cr)</p></div>
+    <div class="card-body"><div class="chart-wrap" style="height:200px"><canvas id="bucket-stock-trend"></canvas></div></div>
+  </div>
+  <div class="card mb-18">
+    <div class="card-header"><h3>DRR & Forecast Trend</h3><p>Daily run-rate trend with collection vs target overlay</p></div>
+    <div class="card-body"><div class="chart-wrap" style="height:200px"><canvas id="drr-trend"></canvas></div></div>
+  </div>
+</div>
+
+<!-- Segment + Insights -->
+<div class="grid-60-40">
+  <div class="card mb-18">
+    <div class="card-header"><h3>Segment Intelligence</h3><p>Upstream intent tags from field / CRM systems</p></div>
+    <div class="card-body table-scroll" style="padding:0">
+      <table class="data-table">
+        <thead><tr><th>Tag</th><th>Base</th><th>Res %</th><th>Contribution</th><th>Action</th></tr></thead>
+        <tbody>
+        ${DATA.segments.map(s=>`<tr>
+          <td>${s.tag}</td><td>${s.base.toLocaleString()}</td>
+          <td>${pctBadge(s.res,72)}</td><td>${s.contribution}%</td>
+          <td style="font-size:11.5px;color:var(--slate-600)">${s.action}</td>
+        </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card mb-18">
+    <div class="card-header"><h3>AI Highlights — ${f.geo}</h3><p>Auto-generated performance observations</p></div>
+    <div class="card-body">
+      ${getGeoInsights(f.geo).map(i=>`<div class="insight-item"><h4>${i.head}</h4><p>${i.body}</p></div>`).join('')}
+    </div>
+  </div>
+</div>`;
+
+  // Render charts
+  setTimeout(() => {
+    const t = DATA.trends;
+    const geo = f.geo;
+    const geoTrends = getGeoTrends(geo);
+    const geoBucketStock = getGeoBucketStock(geo);
+    const chartFont = { family:'DM Sans', size:10 };
+    const gridOpts = { color:'#f1f5f9' };
+
+    // Collections Trend (line) — geo-filtered
+    destroyChart('collections-trend');
+    chartInstances['collections-trend'] = new Chart(document.getElementById('collections-trend'), {
+      type:'line',
+      data:{ labels:t.months, datasets:[
+        { label:'Collection %', data:geoTrends.collection, borderColor:'#1e5c3a', backgroundColor:'rgba(30,92,58,.08)', fill:true, tension:.3, pointRadius:4, pointBackgroundColor:'#1e5c3a', borderWidth:2 },
+        { label:'Target', data:geoTrends.target, borderColor:'#94a3b8', borderDash:[6,3], pointRadius:0, borderWidth:1.5, fill:false },
+        { label:'Bounce %', data:geoTrends.bounce, borderColor:'#dc2626', borderDash:[4,4], pointRadius:3, pointBackgroundColor:'#dc2626', borderWidth:1.5, fill:false },
+        { label:'Roll Forward %', data:geoTrends.roll_fwd, borderColor:'#d97706', borderDash:[3,3], pointRadius:3, pointBackgroundColor:'#d97706', borderWidth:1.5, fill:false },
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{font:chartFont,boxWidth:10,padding:8} } }, scales:{ y:{ min:0, max:100, grid:gridOpts, ticks:{font:chartFont} }, x:{ grid:{display:false}, ticks:{font:chartFont} } } }
+    });
+
+    // Bucket Pie — geo-filtered
+    destroyChart('bucket-pie');
+    chartInstances['bucket-pie'] = new Chart(document.getElementById('bucket-pie'), {
+      type:'doughnut',
+      data:{ labels:geoBucketStock.labels,
+        datasets:[{ data:geoBucketStock.data, backgroundColor:['#1e5c3a','#3b82f6','#dc2626','#d97706','#7c3aed'], borderWidth:2, borderColor:'#fff' }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{font:chartFont,boxWidth:10,padding:8} } } }
+    });
+
+    // Channel Bar
+    destroyChart('channel-bar');
+    chartInstances['channel-bar'] = new Chart(document.getElementById('channel-bar'), {
+      type:'bar',
+      data:{ labels:DATA.channels.labels, datasets:[
+        { label:'This Month', data:DATA.channels.this_m, backgroundColor:'#1e5c3a', borderRadius:3 },
+        { label:'Last Month', data:DATA.channels.last_m, backgroundColor:'#a7d7bc', borderRadius:3 },
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{font:chartFont,boxWidth:10} } }, scales:{ y:{ beginAtZero:true, grid:gridOpts, ticks:{font:chartFont} }, x:{ grid:{display:false}, ticks:{font:chartFont} } } }
+    });
+
+    // Bucket Stock Trend
+    destroyChart('bucket-stock-trend');
+    chartInstances['bucket-stock-trend'] = new Chart(document.getElementById('bucket-stock-trend'), {
+      type:'line',
+      data:{ labels:t.months, datasets:[
+        { label:'B0', data:t.b0_stock, borderColor:'#1e5c3a', tension:.3, pointRadius:2, borderWidth:2 },
+        { label:'B1', data:t.b1_stock, borderColor:'#3b82f6', tension:.3, pointRadius:2, borderWidth:2 },
+        { label:'B2', data:t.b2_stock, borderColor:'#dc2626', tension:.3, pointRadius:2, borderWidth:2 },
+        { label:'B3', data:t.b3_stock, borderColor:'#d97706', tension:.3, pointRadius:2, borderWidth:2 },
+        { label:'NPA', data:t.npa_stock, borderColor:'#7c3aed', tension:.3, pointRadius:2, borderWidth:2 },
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{font:chartFont,boxWidth:10,padding:8} } }, scales:{ y:{ grid:gridOpts, ticks:{font:chartFont} }, x:{ grid:{display:false}, ticks:{font:chartFont} } } }
+    });
+
+    // DRR Trend
+    destroyChart('drr-trend');
+    chartInstances['drr-trend'] = new Chart(document.getElementById('drr-trend'), {
+      type:'line',
+      data:{ labels:t.months, datasets:[
+        { label:'DRR %', data:t.drr, borderColor:'#2563eb', backgroundColor:'rgba(37,99,235,.08)', fill:true, tension:.3, pointRadius:3, borderWidth:2 },
+        { label:'Collection %', data:t.collection, borderColor:'#1e5c3a', tension:.3, pointRadius:3, borderWidth:2, fill:false },
+        { label:'Target', data:t.target, borderColor:'#94a3b8', borderDash:[6,3], pointRadius:0, borderWidth:1.5, fill:false },
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{font:chartFont,boxWidth:10,padding:8} } }, scales:{ y:{ min:70, max:100, grid:gridOpts, ticks:{font:chartFont} }, x:{ grid:{display:false}, ticks:{font:chartFont} } } }
+    });
+  }, 80);
+}
+
+// ════════════════════════════════════════
+// CONTACT CENTRE (Enhanced with Agent Deep Dive)
+// ════════════════════════════════════════
+function renderContact() {
+  if (agentView) { renderAgentView(); return; }
+  const el = document.getElementById('tab-contact');
+  const cc = DATA.cc;
+  const ccKPI = getFilteredCCKPI();
+  const f = getFilters();
+  el.innerHTML = `
+<div class="page-header"><h1>Contact Centre</h1><p>Portfolio-level contact centre review — ${f.month} · ${f.geo}</p></div>
+<div class="kpi-strip">
+  ${kpiCard('Total Agents', ccKPI.agents, 'All centres', 'neu')}
+  ${kpiCard('Attendance', ccKPI.attendance+'%', 'attendance', true)}
+  ${kpiCard('Login %', ccKPI.login+'%', 'login', true)}
+  ${kpiCard('RPC', ccKPI.rpc+'%', 'rpc', true)}
+  ${kpiCard('PTP', ccKPI.ptp+'%', 'ptp', true)}
+  ${kpiCard('Broken PTP', ccKPI.broken_ptp+'%', 'broken_ptp', false)}
+  ${kpiCard('Resolution %', ccKPI.res+'%', 'res', true)}
+  ${kpiCard('DRR', ccKPI.drr+'%', 'drr', true)}
+</div>
+<div class="grid-60-40">
+  <div class="card mb-18">
+    <div class="card-header"><h3>Centre Productivity Funnel</h3><p>Attendance, login, RPC and PTP by centre</p></div>
+    <div class="card-body"><div class="chart-wrap" style="height:220px"><canvas id="cc-funnel"></canvas></div></div>
+  </div>
+  <div class="card mb-18">
+    <div class="card-header"><h3>Unpaid Base by Disposition</h3><p>Status split for contact-centre unpaid base</p></div>
+    <div class="card-body"><div class="chart-wrap" style="height:180px"><canvas id="cc-disp"></canvas></div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+      ${cc.dispositions.map(d=>`<span style="display:flex;align-items:center;gap:4px;font-size:11px"><span style="width:8px;height:8px;border-radius:50%;background:${d.color};display:inline-block"></span>${d.label}</span>`).join('')}
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card mb-18">
+  <div class="card-header flex-between">
+    <div><h3>Contact Centre Table</h3><p>Resolution, retained/fresh base performance — click a centre to drill into agents</p></div>
+  </div>
+  <div class="card-body table-scroll" style="padding:0">
+    <table class="data-table">
+      <thead><tr><th>Centre</th><th>Agents</th><th>Att %</th><th>Login</th><th>RPC</th><th>PTP</th><th>Resolution</th><th>Retained</th><th>Fresh</th><th>DRR</th><th></th></tr></thead>
+      <tbody>
+      ${cc.centres.map(c=>`<tr>
+        <td>${c.c}</td><td>${c.agents}</td>
+        <td>${c.att}%</td><td>${c.login}%</td>
+        <td>${c.rpc}%</td><td>${c.ptp}%</td>
+        <td>${pctBadge(c.res,82)}</td>
+        <td>${c.retained}%</td><td>${c.fresh}%</td>
+        <td><span class="drr-pill">${c.drr}%</span></td>
+        <td><button class="btn-sm btn-green" onclick="openAgentView('${c.c}')">Agent Deep Dive →</button></td>
+      </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+</div>`;
+
+  setTimeout(() => {
+    destroyChart('cc-funnel'); destroyChart('cc-disp');
+    const chartFont = { family:'DM Sans', size:10 };
+    chartInstances['cc-funnel'] = new Chart(document.getElementById('cc-funnel'), {
+      type:'bar',
+      data:{ labels:['Mumbai CC','Delhi CC','Chennai CC'],
+        datasets:[
+          { label:'Attendance', data:[88,79,91], backgroundColor:'#1e5c3a', borderRadius:3 },
+          { label:'Login', data:[82,74,86], backgroundColor:'#3b82f6', borderRadius:3 },
+          { label:'RPC', data:[41,35,46], backgroundColor:'#d97706', borderRadius:3 },
+          { label:'PTP', data:[26,21,29], backgroundColor:'#7c3aed', borderRadius:3 },
+        ]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{font:chartFont,boxWidth:10} } }, scales:{ y:{ max:100, grid:{color:'#f1f5f9'}, ticks:{font:chartFont} }, x:{ grid:{display:false}, ticks:{font:chartFont} } } }
+    });
+    chartInstances['cc-disp'] = new Chart(document.getElementById('cc-disp'), {
+      type:'doughnut',
+      data:{ labels:DATA.cc.dispositions.map(d=>d.label), datasets:[{ data:DATA.cc.dispositions.map(d=>d.pct), backgroundColor:DATA.cc.dispositions.map(d=>d.color), borderWidth:2, borderColor:'#fff' }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false} } }
+    });
+  }, 80);
+}
+
+let selectedCentre = null;
+function openAgentView(centre) { agentView = true; selectedAgent = null; selectedCentre = centre || null; document.getElementById('tab-contact').dataset.rendered=''; renderContact(); }
+function closeAgentView() { agentView = false; selectedCentre = null; document.getElementById('tab-contact').dataset.rendered=''; renderContact(); }
+
+// ═══ FIX 3: FULL AGENT DEEP DIVE ═══
+function renderAgentView() {
+  const el = document.getElementById('tab-contact');
+  const allAgents = DATA.cc.agents;
+  const centreAgents = selectedCentre ? allAgents.filter(a => a.centre === selectedCentre) : allAgents;
+  // Team averages (centre-specific)
+  const teamAvg = {
+    rpc: (centreAgents.reduce((s,a)=>s+a.rpc,0)/centreAgents.length).toFixed(1),
+    ptp: (centreAgents.reduce((s,a)=>s+a.ptp,0)/centreAgents.length).toFixed(1),
+    bptp: (centreAgents.reduce((s,a)=>s+a.bptp,0)/centreAgents.length).toFixed(1),
+    res: (centreAgents.reduce((s,a)=>s+a.res,0)/centreAgents.length).toFixed(1),
+    drr: (centreAgents.reduce((s,a)=>s+a.drr,0)/centreAgents.length).toFixed(1),
+  };
+
+  const centreLabel = selectedCentre || 'All Centres';
+
+  el.innerHTML = `
+<div class="flex-gap" style="margin-bottom:16px">
+  <button class="back-btn" onclick="closeAgentView()">← Back to Contact Centre</button>
+  <div class="page-header" style="margin:0"><h1>Agent Deep Dive — ${centreLabel}</h1><p>Individual KPIs, call insights, AI coaching, scoring, and top-performer comparison.</p></div>
+</div>
+<div class="grid-60-40">
+  <div class="card mb-18">
+    <div class="card-header"><h3>${centreLabel} — Agent Leaderboard</h3><p>Click any agent to view detailed scorecard and call insights</p></div>
+    <div class="card-body table-scroll" style="padding:0">
+      <table class="data-table">
+        <thead><tr><th>Rank</th><th>Agent</th><th>Centre</th><th>RPC</th><th>PTP</th><th>Broken PTP</th><th>Resolution</th><th>DRR</th><th>%ile</th></tr></thead>
+        <tbody id="agent-table-body">
+        ${centreAgents.sort((a,b)=>a.rank-b.rank).map(a=>`<tr class="agent-row ${selectedAgent===a.id?'selected':''}" onclick="selectAgent('${a.id}')">
+          <td><span class="rank-num">${a.rank}</span></td>
+          <td>${a.name}</td><td style="font-size:11px">${a.centre}</td>
+          <td>${a.rpc}%</td><td>${a.ptp}%</td>
+          <td style="${a.bptp>20?'color:var(--red-500)':''};font-weight:600">${a.bptp}%</td>
+          <td>${pctBadge(a.res,80)}</td>
+          <td><span class="drr-pill">${a.drr}%</span></td>
+          <td><span class="badge ${a.pct>=80?'badge-green':a.pct>=50?'badge-amber':'badge-red'}">${a.pct}th</span></td>
+        </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div id="agent-detail-panel">
+    <div class="card" style="height:100%">
+      <div class="card-body" style="display:flex;align-items:center;justify-content:center;height:200px;color:var(--slate-400);font-size:13px">
+        ← Select an agent to view their scorecard
+      </div>
+    </div>
+  </div>
+</div>`;
+  // Store teamAvg on window for selectAgent
+  window._teamAvg = teamAvg;
+}
+
+function selectAgent(id) {
+  selectedAgent = id;
+  const a = DATA.cc.agents.find(x=>x.id===id);
+  const scores = DATA.cc.agent_scores[id] || {};
+  const calls = DATA.cc.call_insights[id] || [];
+  const coaching = DATA.cc.coaching[id] || null;
+  const teamAvg = window._teamAvg;
+  // Top performer is always across ALL centres (rank 1 overall)
+  const topAgent = DATA.cc.agents.find(x=>x.rank===1);
+  const topScores = DATA.cc.agent_scores[topAgent.id] || {};
+
+  document.querySelectorAll('.agent-row').forEach(r=>r.classList.remove('selected'));
+  document.querySelectorAll('.agent-row').forEach(r=>{ if(r.onclick && r.onclick.toString().includes("'"+id+"'")) r.classList.add('selected'); });
+
+  const scoreKeys = { issue_id:'Issue Identification', issue_handling:'Issue Handling & Negotiation', communication:'Communication Skills', empathy:'Empathy / Soft Skills', ptp_close:'PTP Closure Ability', compliance:'Compliance / Script' };
+  const avgScore = Object.values(scores).length ? Object.values(scores).reduce((s,v)=>s+v,0)/Object.values(scores).length : 0;
+
+  // Build coaching section HTML
+  let coachingHTML = '';
+  if (coaching) {
+    coachingHTML = `
+    <div style="font-size:12.5px;font-weight:700;color:var(--green-800);margin:14px 0 8px">B. AI-Generated Personalized Coaching</div>
+    <div class="coaching-card" style="border-left:3px solid var(--green-500)">
+      <h5 style="color:var(--green-700)">✓ What You Are Doing Well</h5>
+      <p>${coaching.strengths}</p>
+    </div>
+    <div class="coaching-card" style="border-left:3px solid var(--amber-500);background:linear-gradient(135deg,var(--amber-50),var(--white))">
+      <h5 style="color:var(--amber-500)">⚠ Areas for Improvement</h5>
+      <p>${coaching.improvement}</p>
+    </div>
+    <div class="coaching-card" style="border-left:3px solid var(--blue-500);background:linear-gradient(135deg,var(--blue-100),var(--white))">
+      <h5 style="color:var(--blue-500)">📊 How You Compare to the Top Performer</h5>
+      <p>${coaching.top_comparison}</p>
+    </div>
+    <div class="coaching-card" style="border-left:3px solid var(--slate-700);background:linear-gradient(135deg,var(--slate-100),var(--white))">
+      <h5 style="color:var(--slate-700)">📋 Recommended Training & Actions</h5>
+      <p>${coaching.training}</p>
+    </div>`;
+  } else {
+    coachingHTML = `
+    <div style="font-size:12.5px;font-weight:700;color:var(--green-800);margin:14px 0 8px">B. AI-Generated Personalized Coaching</div>
+    <div class="coaching-card"><p>No specific coaching notes available for this agent yet. Schedule a review with the team lead.</p></div>`;
+  }
+
+  document.getElementById('agent-detail-panel').innerHTML = `
+<div class="card">
+  <div class="card-header">
+    <h3>${a.name}</h3>
+    <p>${a.centre} · Rank #${a.rank} · ${a.pct}th percentile</p>
+  </div>
+  <div class="card-body" style="max-height:calc(100vh - 200px);overflow-y:auto">
+
+    <!-- A. Overall Performance & Positioning -->
+    <div style="font-size:12.5px;font-weight:700;color:var(--green-800);margin-bottom:8px">A. Overall Performance & Positioning</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px">
+      ${[['Alloc Base',a.alloc],['Touched',a.touched],['Contact Rate',a.contact_rate+'%'],['RPC',a.rpc+'%'],['PTP',a.ptp+'%'],['Broken PTP',a.bptp+'%'],['Resolution',a.res+'%'],['DRR',a.drr+'%']].map(([l,v])=>`<div style="text-align:center;padding:8px 4px;background:var(--slate-50);border-radius:6px"><div style="font-size:10px;color:var(--slate-500);margin-bottom:2px">${l}</div><div style="font-size:15px;font-weight:700;font-family:'Instrument Serif',serif">${v}</div></div>`).join('')}
+    </div>
+    <div style="font-size:11px;color:var(--slate-500);margin-bottom:12px">
+      <strong>vs Centre Avg:</strong> RPC ${(function(){ const diff = a.rpc - teamAvg.rpc; const col = diff >= 0 ? 'green-500' : 'red-500'; const arrow = diff >= 0 ? '↑' : '↓'; return '<span style="color:var(--'+col+')">'+arrow+Math.abs(diff).toFixed(1)+'</span>'; })()} · 
+      Res ${(function(){ const diff = a.res - teamAvg.res; const col = diff >= 0 ? 'green-500' : 'red-500'; const arrow = diff >= 0 ? '↑' : '↓'; return '<span style="color:var(--'+col+')">'+arrow+Math.abs(diff).toFixed(1)+'</span>'; })()} · 
+      BPTP ${(function(){ const diff = teamAvg.bptp - a.bptp; const col = diff >= 0 ? 'green-500' : 'red-500'; const arrow = diff >= 0 ? '↓' : '↑'; return '<span style="color:var(--'+col+')">'+arrow+Math.abs(a.bptp - teamAvg.bptp).toFixed(1)+'</span>'; })()}
+    </div>
+
+    <!-- Recent Call Insights -->
+    ${calls.length?`<div style="font-size:12.5px;font-weight:700;color:var(--green-800);margin:14px 0 8px">Recent Call Insights</div>
+    ${calls.map(c=>`<div class="call-insight-card">
+      <h5>${c.call}</h5>
+      <div class="call-meta"><span class="call-dot ${c.tone==='warm'||c.tone==='confident'?'g':c.tone==='aggressive'?'r':'a'}"></span>Tone: <strong>${c.tone}</strong> · Outcome: <strong>${c.outcome||'N/A'}</strong></div>
+      <div class="call-meta"><span class="call-dot ${c.intent_id?'g':'r'}"></span>Issue Identification: ${c.intent_id?'✓ Identified':'✗ Not identified'}</div>
+      <div class="call-meta"><span class="call-dot ${c.obj_handled?'g':'r'}"></span>Issue Handling: ${c.obj_handled?'✓ Handled':'✗ Not handled'}</div>
+      <div class="call-meta"><span class="call-dot ${c.next_step?'g':'r'}"></span>Next Step Secured: ${c.next_step?'✓ Yes':'✗ No'}</div>
+      <p style="margin-top:6px;font-size:11.5px;color:var(--slate-600);line-height:1.5">${c.summary}</p>
+      ${c.missed?`<p style="margin-top:4px;font-size:11px;color:var(--red-500)"><strong>Missed:</strong> ${c.missed}</p>`:''}
+    </div>`).join('')}`:''}
+
+    <!-- C. AI-Generated Personalized Coaching (4 parts) -->
+    ${coachingHTML}
+
+    <!-- C. Caller Scoring -->
+    <div style="font-size:12.5px;font-weight:700;color:var(--green-800);margin:14px 0 8px">C. Caller Scoring <span style="font-size:11px;color:var(--slate-500);margin-left:6px">Avg: ${avgScore.toFixed(1)}/10</span></div>
+    ${Object.entries(scoreKeys).map(([k,label])=>{
+      const v = scores[k]||0; const pct = v*10; const col = v>=8?'var(--green-500)':v>=6?'var(--amber-500)':'var(--red-500)';
+      return `<div class="score-bar-row"><span class="score-bar-label">${label}</span><div class="score-bar-track"><div class="score-bar-fill" style="width:${pct}%;background:${col}"></div></div><span class="score-bar-num" style="color:${col}">${v}</span></div>`;
+    }).join('')}
+
+    <!-- D. Top Performer Comparison (across all centres) -->
+    <div style="font-size:12.5px;font-weight:700;color:var(--green-800);margin:14px 0 8px">D. Top Performer Comparison <span style="font-size:11px;color:var(--slate-500);margin-left:6px">vs ${topAgent.name} (${topAgent.centre})</span></div>
+    <div class="table-scroll">
+    <table class="data-table" style="font-size:11.5px">
+      <thead><tr><th>Dimension</th><th>${a.name}</th><th>${topAgent.name}</th><th>Gap</th></tr></thead>
+      <tbody>
+      ${Object.entries(scoreKeys).map(([k,label])=>{
+        const mine = scores[k]||0;
+        const top = topScores[k]||0;
+        const gap = (mine - top).toFixed(1);
+        const col = parseFloat(gap) >= 0 ? 'var(--green-600)' : 'var(--red-500)';
+        return `<tr><td>${label}</td><td style="font-weight:700">${mine}</td><td style="font-weight:700;color:var(--green-600)">${top}</td><td style="color:${col};font-weight:700">${gap}</td></tr>`;
+      }).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>
+</div>`;
+}
+
+// ════════════════════════════════════════
+// FIELD PERFORMANCE (Enhanced with Map + Deep Dive)
+// ════════════════════════════════════════
+function renderField() {
+  const el = document.getElementById('tab-field');
+  regionLevel = 'india'; selectedState = null; selectedDistrict = null;
+  const f = DATA.field;
+  const fk = getFilteredFieldKPI();
+  const fl = getFilters();
+  el.innerHTML = `
+<div class="page-header"><h1>Field Performance</h1><p>Geography-led field collections performance — ${fl.month} · ${fl.geo} · ${fl.bucket}</p></div>
+<div class="kpi-strip">
+  ${kpiCard('Unpaid Accounts', fk.unpaid.toLocaleString(), 'All states', 'neu')}
+  ${kpiCard('Resolution %', fk.res+'%', 'field_res', true)}
+  ${kpiCard('PTP %', fk.ptp+'%', 'field_ptp', true)}
+  ${kpiCard('Broken PTP', fk.bptp+'%', 'field_bptp', false)}
+  ${kpiCard('LMPD Breach', fk.lmpd+'%', 'field_lmpd', false)}
+  ${kpiCard('No Feedback', fk.no_fb+'%', 'field_no_fb', false)}
+  ${kpiCard('DRR', fk.drr+'%', 'field_drr', true)}
+  ${kpiCard('Unattended 10d', fk.unattended_10d.toLocaleString(), 'field_unattended', false)}
+</div>
+
+<!-- SECTION 1: State Chart + AI Insights (side by side) -->
+<div class="grid-60-40">
+  <div class="card mb-18">
+    <div class="card-header"><h3>State Field Performance</h3><p>State-wise resolution and PTP</p></div>
+    <div class="card-body"><div class="chart-wrap" style="height:240px"><canvas id="field-bar"></canvas></div></div>
+  </div>
+  <div class="card mb-18">
+    <div class="card-header"><h3>Field Hotspots</h3><p>Branches needing attention</p></div>
+    <div class="card-body">
+    ${f.hotspots.map(h=>`<div class="hotspot-item"><h5>${h.t}</h5><p>${h.b}</p></div>`).join('')}
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 2: Map + Legend (side by side) -->
+<div class="grid-60-40">
+  <div class="card mb-18">
+    <div class="card-header"><h3>Performance Map</h3><p>Click any circle to drill into state → district → pincode</p></div>
+    <div class="card-body" style="padding:8px"><div id="field-map"></div></div>
+  </div>
+  <div class="card mb-18">
+    <div class="card-header"><h3>Map Legend</h3><p>Colour coding by resolution rate vs target</p></div>
+    <div class="card-body">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:10px"><span style="width:22px;height:22px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0"></span><div><div style="font-size:12.5px;font-weight:600;color:var(--slate-800)">Above Target</div><div style="font-size:11px;color:var(--slate-500)">Resolution ≥ Target (e.g. +2.1%)</div></div></div>
+        <div style="display:flex;align-items:center;gap:10px"><span style="width:22px;height:22px;border-radius:50%;background:#84cc16;display:inline-block;flex-shrink:0"></span><div><div style="font-size:12.5px;font-weight:600;color:var(--slate-800)">At Target</div><div style="font-size:11px;color:var(--slate-500)">Resolution within 0–1% of target</div></div></div>
+        <div style="display:flex;align-items:center;gap:10px"><span style="width:22px;height:22px;border-radius:50%;background:#eab308;display:inline-block;flex-shrink:0"></span><div><div style="font-size:12.5px;font-weight:600;color:var(--slate-800)">Watch</div><div style="font-size:11px;color:var(--slate-500)">Resolution −1% to −3% vs target</div></div></div>
+        <div style="display:flex;align-items:center;gap:10px"><span style="width:22px;height:22px;border-radius:50%;background:#f97316;display:inline-block;flex-shrink:0"></span><div><div style="font-size:12.5px;font-weight:600;color:var(--slate-800)">Stress</div><div style="font-size:11px;color:var(--slate-500)">Resolution −3% to −6% vs target</div></div></div>
+        <div style="display:flex;align-items:center;gap:10px"><span style="width:22px;height:22px;border-radius:50%;background:#ef4444;display:inline-block;flex-shrink:0"></span><div><div style="font-size:12.5px;font-weight:600;color:var(--slate-800)">Critical</div><div style="font-size:11px;color:var(--slate-500)">Resolution −6% or worse vs target</div></div></div>
+      </div>
+      <div style="margin-top:14px;padding:10px;background:var(--slate-50);border-radius:8px;font-size:11.5px;color:var(--slate-600)">
+        <strong>Circle size</strong> = relative unpaid account volume. Larger circles indicate higher exposure.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3: State Performance Table (immediately below map) -->
+<div class="card mb-18">
+  <div class="card-header"><h3>State Performance Summary</h3><p>Click a state row to drill into districts</p></div>
+  <div class="card-body table-scroll" style="padding:0">
+    <table class="data-table">
+      <thead><tr><th>State</th><th>POS</th><th>Resolution</th><th>Target</th><th>Gap</th><th>PTP</th><th>BPTP</th><th>DRR</th><th>Unpaid</th><th>Unatt. 10d</th><th>Action Strategy</th><th></th></tr></thead>
+      <tbody>
+      ${f.states.map(s=>{
+        const unatt = Math.round((s.unpaid||2000) * (parseFloat(s.gap)<-3 ? 0.22 : parseFloat(s.gap)<0 ? 0.14 : 0.08));
+        const strategy = getStateStrategy(s);
+        return `<tr style="cursor:pointer" onclick="drillToState('${s.s}')">
+        <td>${s.s}</td><td>${s.pos}</td>
+        <td>${pctBadge(s.res,parseFloat(s.tgt))}</td><td>${s.tgt}%</td>
+        <td style="${gapColor(s.gap)}">${s.gap} pts</td>
+        <td>${s.ptp}%</td>
+        <td style="${s.bptp>25?'color:var(--red-500)':s.bptp>20?'color:var(--amber-500)':'color:var(--green-600)'};font-weight:600">${s.bptp}%</td>
+        <td><span class="drr-pill">${s.drr}%</span></td>
+        <td>${(s.unpaid||0).toLocaleString()}</td>
+        <td style="font-weight:600;${unatt>500?'color:var(--red-500)':unatt>300?'color:var(--amber-500)':'color:var(--green-600)'}">${unatt}</td>
+        <td style="font-size:10.5px;color:var(--slate-600);max-width:140px;white-space:normal">${strategy}</td>
+        <td><button class="btn-sm btn-outline" onclick="event.stopPropagation();drillToState('${s.s}')">Districts →</button></td>
+      </tr>`;}).join('')}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Region Deep Dive -->
+<div class="card">
+  <div class="card-header"><h3>Region Deep Dive</h3><p>Interactive drill-down: India → State → District → Pincode</p></div>
+  <div class="card-body"><div id="region-dd"></div></div>
+</div>`;
+
+  setTimeout(() => {
+    try { initFieldMap('india'); } catch(e) { console.warn('Field map init:', e); }
+    try {
+    destroyChart('field-bar');
+    const states = f.states.slice(0,10);
+    const chartFont = { family:'DM Sans', size:10 };
+    chartInstances['field-bar'] = new Chart(document.getElementById('field-bar'), {
+      type:'bar',
+      data:{ labels: states.map(s=>s.s),
+        datasets:[
+          { label:'Resolution %', data:states.map(s=>s.res), backgroundColor:states.map(s=>s.res>=s.tgt?'#1e5c3a':s.res>=s.tgt-3?'#d97706':'#dc2626'), borderRadius:3 },
+          { label:'PTP %', data:states.map(s=>s.ptp), backgroundColor:'rgba(59,130,246,.4)', borderRadius:3 },
+        ]},
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{font:chartFont,boxWidth:10} } }, scales:{ y:{ max:100, grid:{color:'#f1f5f9'}, ticks:{font:chartFont} }, x:{ grid:{display:false}, ticks:{font:{size:9}} } } }
+    });
+    } catch(e) { console.warn('Field chart error:', e); }
+    renderRegionIndia();
+  }, 100);
+}
+
+// ═══ INTERACTIVE MAP FOR FIELD ═══
+function getGapColor(gap) {
+  var g = parseFloat(gap);
+  if (g >= 1) return '#22c55e';
+  if (g >= 0) return '#84cc16';
+  if (g >= -3) return '#eab308';
+  if (g >= -6) return '#f97316';
+  return '#ef4444';
+}
+
+// District approximate coords
+var DISTRICT_COORDS = {
+  'Chennai South':{lat:13.04,lng:80.25},'Coimbatore':{lat:11.01,lng:76.96},'Madurai':{lat:9.92,lng:78.12},'Salem':{lat:11.65,lng:78.16},'Tiruchirappalli':{lat:10.79,lng:78.68},
+  'Lucknow':{lat:26.85,lng:80.95},'Kanpur':{lat:26.45,lng:80.35},'Agra':{lat:27.18,lng:78.02},'Varanasi':{lat:25.32,lng:83.01},'Meerut':{lat:28.98,lng:77.71},
+  'Delhi South':{lat:28.52,lng:77.21},'Delhi North':{lat:28.75,lng:77.12},'Delhi West':{lat:28.65,lng:77.05},'Delhi East':{lat:28.63,lng:77.30},
+  'Kochi':{lat:9.93,lng:76.27},'Kozhikode':{lat:11.25,lng:75.77},'Thiruvananthapuram':{lat:8.52,lng:76.94},'Thrissur':{lat:10.53,lng:76.21},'Kannur':{lat:11.87,lng:75.37},
+  'Bengaluru':{lat:12.97,lng:77.59},'Mysuru':{lat:12.30,lng:76.64},'Hubli-Dharwad':{lat:15.36,lng:75.12},'Mangaluru':{lat:12.87,lng:74.84},
+  'Mumbai':{lat:19.08,lng:72.88},'Pune':{lat:18.52,lng:73.86},'Nagpur':{lat:21.15,lng:79.09},'Nashik':{lat:19.99,lng:73.79},
+  'Ahmedabad':{lat:23.02,lng:72.57},'Surat':{lat:21.17,lng:72.83},'Vadodara':{lat:22.31,lng:73.19},'Rajkot':{lat:22.30,lng:70.80},
+  'Jaipur':{lat:26.91,lng:75.79},'Jodhpur':{lat:26.24,lng:73.02},'Udaipur':{lat:24.58,lng:73.71},'Kota':{lat:25.18,lng:75.86},
+  'Kolkata':{lat:22.57,lng:88.36},'Howrah':{lat:22.59,lng:88.26},'Siliguri':{lat:26.71,lng:88.43},'Durgapur':{lat:23.55,lng:87.32},
+  'Patna':{lat:25.61,lng:85.14},'Gaya':{lat:24.80,lng:85.00},'Muzaffarpur':{lat:26.12,lng:85.39},'Bhagalpur':{lat:25.24,lng:86.97},
+};
+
+// Tile providers — try multiple
+var TILE_URLS = [
+  'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+];
+
+function initFieldMap(level, filterState, filterDistrict) {
+  var mapEl = document.getElementById('field-map');
+  if (!mapEl) return;
+
+  if (leafletMap) { try { leafletMap.remove(); } catch(e) {} leafletMap = null; }
+  mapEl.innerHTML = '<div style="height:400px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;border-radius:10px;color:#64748b;font-size:13px">Loading map...</div>';
+
+  // Wait for Leaflet
+  var tries = 0;
+  var check = setInterval(function() {
+    tries++;
+    if (typeof L !== 'undefined' && L.map && L.tileLayer) {
+      clearInterval(check);
+      mapEl.innerHTML = '';
+      mapEl.style.height = '400px';
+      buildMap(mapEl, level, filterState, filterDistrict);
+    } else if (tries > 25) {
+      clearInterval(check);
+      renderFallbackMap(mapEl, level, filterState);
+    }
+  }, 200);
+}
+
+function addTiles(map) {
+  // Try first tile URL; on error switch
+  var tileIdx = 0;
+  function tryTile() {
+    if (tileIdx >= TILE_URLS.length) return;
+    var layer = L.tileLayer(TILE_URLS[tileIdx], {maxZoom:19, attribution:'© OpenStreetMap'});
+    layer.on('tileerror', function() {
+      map.removeLayer(layer);
+      tileIdx++;
+      tryTile();
+    });
+    layer.addTo(map);
+  }
+  tryTile();
+}
+
+function buildMap(mapEl, level, filterState, filterDistrict) {
+  try {
+    if (level === 'india') {
+      leafletMap = L.map(mapEl, {zoomControl:true, scrollWheelZoom:true}).setView([22.5, 79.0], 5);
+      addTiles(leafletMap);
+
+      DATA.field.states.forEach(function(s) {
+        var coords = DATA.field.stateCoords[s.s];
+        if (!coords) return;
+        var color = getGapColor(s.gap);
+        var sz = Math.max(14, Math.min(30, (s.unpaid||2000)/150));
+        var gn = parseFloat(s.gap);
+        var gs = (gn >= 0 ? '+' : '') + s.gap + '%';
+
+        L.circleMarker([coords.lat, coords.lng], {radius:sz+5, fillColor:color, color:'transparent', fillOpacity:0.2}).addTo(leafletMap);
+        var m = L.circleMarker([coords.lat, coords.lng], {radius:sz, fillColor:color, color:'#fff', weight:2.5, fillOpacity:0.9}).addTo(leafletMap);
+        m.bindTooltip(
+          '<div style="font-family:DM Sans,sans-serif;min-width:150px">' +
+          '<div style="font-weight:700;font-size:13px;margin-bottom:3px">'+s.s+'</div>' +
+          '<div style="font-size:12px">Resolution: <b>'+s.res+'%</b> (Tgt '+s.tgt+'%)</div>' +
+          '<div style="font-size:12px;color:'+color+';font-weight:700">Gap: '+gs+'</div>' +
+          '<div style="font-size:11px;color:#64748b;margin-top:2px">PTP '+s.ptp+'% · BPTP '+s.bptp+'% · DRR '+s.drr+'%</div>' +
+          '<div style="font-size:10px;color:#94a3b8;margin-top:3px">Click to drill into districts →</div></div>',
+          {direction:'top', offset:[0,-sz]}
+        );
+        m.on('click', function() { drillToState(s.s); });
+      });
+
+    } else if (level === 'state' && filterState) {
+      var districts = DATA.field.districts[filterState] || generateDistricts(filterState);
+      var sc = DATA.field.stateCoords[filterState] || {lat:22,lng:78};
+      leafletMap = L.map(mapEl, {zoomControl:true, scrollWheelZoom:true}).setView([sc.lat, sc.lng], 7);
+      addTiles(leafletMap);
+
+      var bounds = [];
+      districts.forEach(function(d) {
+        var dc = DISTRICT_COORDS[d.d];
+        var lat = dc ? dc.lat : sc.lat + (Math.random()-0.5)*1.5;
+        var lng = dc ? dc.lng : sc.lng + (Math.random()-0.5)*1.5;
+        bounds.push([lat, lng]);
+        var color = getGapColor(d.gap);
+        var sz = Math.max(12, Math.min(24, (d.unpaid||400)/30));
+        var gn = parseFloat(d.gap);
+        var gs = (gn >= 0 ? '+' : '') + d.gap + '%';
+
+        L.circleMarker([lat, lng], {radius:sz+4, fillColor:color, color:'transparent', fillOpacity:0.15}).addTo(leafletMap);
+        var m = L.circleMarker([lat, lng], {radius:sz, fillColor:color, color:'#fff', weight:2.5, fillOpacity:0.9}).addTo(leafletMap);
+        m.bindTooltip(
+          '<div style="font-family:DM Sans,sans-serif;min-width:130px">' +
+          '<div style="font-weight:700;font-size:13px;margin-bottom:3px">'+d.d+'</div>' +
+          '<div style="font-size:12px">Res: <b>'+d.res+'%</b> (Tgt '+d.tgt+'%)</div>' +
+          '<div style="font-size:12px;color:'+color+';font-weight:700">Gap: '+gs+'</div>' +
+          '<div style="font-size:11px;color:#64748b">PTP '+(d.ptp||'-')+'% · BPTP '+(d.bptp||d.bounce||'-')+'%</div>' +
+          '<div style="font-size:10px;color:#94a3b8;margin-top:2px">Click for pincodes →</div></div>',
+          {direction:'top', offset:[0,-sz]}
+        );
+        m.on('click', function() { drillToDistrict(filterState, d.d); });
+      });
+      if (bounds.length > 1) leafletMap.fitBounds(bounds, {padding:[50,50]});
+
+    } else if (level === 'district' && filterState && filterDistrict) {
+      var pincodes = DATA.field.pincodes[filterDistrict] || generatePincodes(filterDistrict);
+      var dc = DISTRICT_COORDS[filterDistrict] || DATA.field.stateCoords[filterState] || {lat:22,lng:78};
+      leafletMap = L.map(mapEl, {zoomControl:true, scrollWheelZoom:true}).setView([dc.lat, dc.lng], 12);
+      addTiles(leafletMap);
+
+      pincodes.forEach(function(p, i) {
+        var angle = (i / pincodes.length) * Math.PI * 2;
+        var lat = dc.lat + Math.cos(angle) * 0.035 * (i+1);
+        var lng = dc.lng + Math.sin(angle) * 0.035 * (i+1);
+        var color = p.res >= 85 ? '#22c55e' : p.res >= 75 ? '#eab308' : p.res >= 65 ? '#f97316' : '#ef4444';
+        var sz = Math.max(8, Math.min(16, p.accounts/20));
+        L.circleMarker([lat, lng], {radius:sz, fillColor:color, color:'#fff', weight:2, fillOpacity:0.9}).addTo(leafletMap);
+        L.marker([lat, lng], {icon:L.divIcon({className:'',html:'<div style="font-family:DM Sans;font-size:10px;font-weight:700;color:#1e293b;white-space:nowrap;background:rgba(255,255,255,.85);padding:1px 5px;border-radius:4px;border:1px solid #e2e8f0">'+p.p+' · '+p.res+'%</div>',iconAnchor:[-12,0]})}).addTo(leafletMap);
+      });
+    }
+    setTimeout(function() { if (leafletMap) try { leafletMap.invalidateSize(); } catch(e){} }, 300);
+  } catch(err) {
+    console.warn('Map build error:', err);
+    renderFallbackMap(mapEl, level, filterState);
+  }
+}
+
+// Simple fallback if Leaflet fails entirely
+function renderFallbackMap(mapEl, level, filterState) {
+  var SVG_C = {'Kerala':{x:32,y:88},'Tamil Nadu':{x:45,y:85},'Karnataka':{x:35,y:72},'Maharashtra':{x:30,y:55},'Gujarat':{x:15,y:45},'Rajasthan':{x:22,y:30},'Delhi':{x:38,y:22},'UP':{x:50,y:30},'Bihar':{x:65,y:35},'West Bengal':{x:72,y:45}};
+  var items = [];
+  if (level === 'india') {
+    items = DATA.field.states.map(function(s) {
+      var c = SVG_C[s.s]||{x:50,y:50}; var gn=parseFloat(s.gap);
+      return {name:s.s,x:c.x,y:c.y,r:Math.max(12,Math.min(22,(s.unpaid||2000)/180)),color:getGapColor(s.gap),label:s.res+'% ('+(gn>=0?'+':'')+s.gap+'%)',onclick:"drillToState('"+s.s+"')"};
+    });
+  } else {
+    var districts = DATA.field.districts[filterState]||generateDistricts(filterState);
+    items = districts.map(function(d,i) {
+      var a=(i/districts.length)*Math.PI*2-Math.PI/2; var sp=Math.min(30,12+districts.length*4); var gn=parseFloat(d.gap);
+      return {name:d.d,x:50+Math.cos(a)*sp,y:52+Math.sin(a)*sp,r:Math.max(10,Math.min(18,(d.unpaid||400)/35)),color:getGapColor(d.gap),label:d.res+'% ('+(gn>=0?'+':'')+d.gap+'%)',onclick:"drillToDistrict('"+filterState+"','"+d.d+"')"};
+    });
+  }
+  var W=520,H=400;
+  var circles=items.map(function(it){var px=(it.x/100*(W-40))+20,py=(it.y/100*(H-60))+40;return '<g onclick="'+it.onclick+'" style="cursor:pointer" class="mn"><circle cx="'+px+'" cy="'+py+'" r="'+(it.r+5)+'" fill="'+it.color+'" opacity="0.15"/><circle cx="'+px+'" cy="'+py+'" r="'+it.r+'" fill="'+it.color+'" stroke="#fff" stroke-width="2.5" opacity="0.9"/><text x="'+px+'" y="'+(py+it.r+14)+'" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1e293b" font-family="DM Sans">'+it.name+'</text><text x="'+px+'" y="'+(py+it.r+26)+'" text-anchor="middle" font-size="9.5" font-weight="600" fill="'+it.color+'" font-family="DM Sans">'+it.label+'</text></g>';}).join('');
+  var title=level==='india'?'All India — Click to drill down':(filterState+' Districts');
+  mapEl.innerHTML='<div style="height:400px;border-radius:10px;border:1px solid #e2e8f0;overflow:hidden"><svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:100%"><rect width="'+W+'" height="'+H+'" fill="#f0f9ff"/>'+circles+'<text x="'+(W/2)+'" y="24" text-anchor="middle" font-size="13" font-weight="700" fill="#1e293b" font-family="DM Sans">'+title+'</text><style>.mn:hover circle:nth-child(2){stroke:#1e293b;stroke-width:3}</style></svg></div>';
+}
+
+function drillToState(state) {
+  selectedState = state;
+  regionLevel = 'state';
+  try { initFieldMap('state', state); } catch(e) { console.warn('Map drill error:', e); }
+  drillStateRegion(state);
+}
+
+function drillToDistrict(state, district) {
+  selectedDistrict = district;
+  regionLevel = 'district';
+  try { initFieldMap('district', state, district); } catch(e) { console.warn('Map pincode error:', e); }
+  drillDistrictRegion(state, district);
+}
+
+function backToIndia() {
+  regionLevel = 'india'; selectedState = null; selectedDistrict = null;
+  try { initFieldMap('india'); } catch(e) { console.warn('Map reset error:', e); }
+  renderRegionIndia();
+}
+
+function renderRegionIndia() {
+  const el = document.getElementById('region-dd');
+  if (!el) return;
+  const states = DATA.field.states;
+  el.innerHTML = `
+    <div class="region-breadcrumb"><span class="active">All India</span></div>
+    <p style="font-size:12px;color:var(--slate-500);margin-bottom:12px">Click a state to drill into district-level performance.</p>
+    <div class="state-grid">
+    ${states.map(s=>{
+      const gap=parseFloat(s.gap);
+      const cls=gap>=0?'green-state':gap>=-3?'amber-state':'red-state';
+      return `<div class="state-card ${cls}" onclick="drillToState('${s.s}')">
+        <h4>${s.s}</h4>
+        <div class="res" style="color:${gap>=0?'var(--green-600)':gap>=-3?'var(--amber-500)':'var(--red-500)'}">${s.res}%</div>
+        <div class="meta">Target: ${s.tgt}% · Gap: <strong>${s.gap} pts</strong></div>
+        <div class="meta">PTP: ${s.ptp}% · BPTP: ${s.bptp}%</div>
+      </div>`;
+    }).join('')}
+    </div>`;
+}
+
+function drillStateRegion(state) {
+  const districts = DATA.field.districts[state] || generateDistricts(state);
+  const el = document.getElementById('region-dd');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="region-breadcrumb">
+      <button class="back-btn" style="margin:0;padding:4px 10px;font-size:11.5px" onclick="backToIndia()">← All India</button>
+      <span class="sep">›</span><span class="active">${state}</span>
+    </div>
+    <p style="font-size:12px;color:var(--slate-500);margin-bottom:12px">District-level performance for ${state}. Click a district to view pincode breakdown.</p>
+    <div class="table-scroll">
+    <table class="data-table">
+      <thead><tr><th>District</th><th>POS</th><th>Resolution</th><th>Target</th><th>Gap</th><th>PTP</th><th>BPTP</th><th>DRR</th><th>Unpaid</th><th>Unatt. 10d</th><th>Action Strategy</th><th></th></tr></thead>
+      <tbody>
+      ${districts.map(d=>{
+        const unatt = Math.round((d.unpaid||400) * (parseFloat(d.gap)<-3 ? 0.24 : parseFloat(d.gap)<0 ? 0.15 : 0.08));
+        const strategy = getDistrictStrategy(d);
+        return `<tr>
+        <td>${d.d}</td><td>${d.pos}</td>
+        <td>${pctBadge(d.res,d.tgt)}</td><td>${d.tgt}%</td>
+        <td style="${gapColor(d.gap)}">${d.gap} pts</td>
+        <td>${d.ptp||'-'}%</td>
+        <td style="${(d.bptp||0)>25?'color:var(--red-500);font-weight:600':'font-weight:600'}">${d.bptp||d.bounce||'-'}%</td>
+        <td><span class="drr-pill">${d.drr}%</span></td>
+        <td>${(d.unpaid||'-')}</td>
+        <td style="font-weight:600;${unatt>150?'color:var(--red-500)':unatt>80?'color:var(--amber-500)':'color:var(--green-600)'}">${unatt}</td>
+        <td style="font-size:10.5px;color:var(--slate-600);max-width:140px;white-space:normal">${strategy}</td>
+        <td><button class="btn-sm btn-outline" onclick="drillToDistrict('${state}','${d.d}')">Pincodes →</button></td>
+      </tr>`;}).join('')}
+      </tbody>
+    </table>
+    </div>`;
+}
+
+function drillDistrictRegion(state, district) {
+  const pincodes = DATA.field.pincodes[district] || generatePincodes(district);
+  const el = document.getElementById('region-dd');
+  if (!el) return;
+  el.innerHTML = `
+    <div class="region-breadcrumb" style="flex-wrap:wrap;gap:5px">
+      <button class="back-btn" style="margin:0;padding:4px 10px;font-size:11.5px" onclick="backToIndia()">← India</button>
+      <span class="sep">›</span>
+      <button class="back-btn" style="margin:0;padding:4px 10px;font-size:11.5px" onclick="drillToState('${state}')">${state}</button>
+      <span class="sep">›</span><span class="active">${district}</span>
+    </div>
+    <p style="font-size:12px;color:var(--slate-500);margin-bottom:12px">Pincode-level performance for ${district}, ${state}.</p>
+    <div class="table-scroll">
+    <table class="data-table">
+      <thead><tr><th>Pincode</th><th>POS</th><th>Accounts</th><th>Resolution</th><th>PTP</th><th>BPTP</th><th>DRR</th><th>Unatt. 10d</th><th>Action Strategy</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      ${pincodes.map(p=>{
+        const s=p.res>=85?'Healthy':p.res>=75?'Watch':p.res>=65?'Stress':'High Risk';
+        const unatt = Math.round(p.accounts * (p.res<70 ? 0.28 : p.res<80 ? 0.18 : 0.09));
+        const strategy = getPincodeStrategy(p);
+        return `<tr><td>${p.p}</td><td>${p.pos}</td><td>${p.accounts}</td><td>${pctBadge(p.res,80)}</td><td>${p.ptp||'-'}%</td><td>${p.bptp||'-'}%</td><td><span class="drr-pill">${p.drr||'-'}%</span></td><td style="font-weight:600;${unatt>40?'color:var(--red-500)':unatt>20?'color:var(--amber-500)':'color:var(--green-600)'}">${unatt}</td><td style="font-size:10.5px;color:var(--slate-600);max-width:130px;white-space:normal">${strategy}</td><td>${statusBadge(s)}</td><td><button class="btn-sm btn-outline" onclick="drillToCases('${state}','${district}','${p.p}',${p.accounts},${p.res})">Cases →</button></td></tr>`;
+      }).join('')}
+      </tbody>
+    </table>
+    </div>`;
+}
+
+// Strategy generators for Action Strategy column
+function getStateStrategy(s) {
+  const g = parseFloat(s.gap);
+  if (g >= 2) return 'Scale allocation; replicate self-cure model to adjacent zones.';
+  if (g >= 0) return 'Maintain momentum; tighten B2/B3 field follow-up.';
+  if (g >= -3) return 'Agency refresh needed; focus on PTP discipline improvement.';
+  if (g >= -6) return 'Escalate to field leadership; deploy supervisor reallocation.';
+  return 'Emergency intervention: agency swap + daily monitoring + legal escalation.';
+}
+function getDistrictStrategy(d) {
+  const g = parseFloat(d.gap);
+  if (g >= 2) return 'Benchmark district; increase allocation and scale.';
+  if (g >= 0) return 'On track; strengthen PTP confirmation protocol.';
+  if (g >= -3) return 'List refresh + field visit frequency increase needed.';
+  if (g >= -6) return 'Supervisor escalation; daily broken PTP review.';
+  return 'Critical: deploy senior field team + skip-trace non-contactables.';
+}
+function getPincodeStrategy(p) {
+  if (p.res >= 85) return 'Healthy; automate via self-cure SMS push.';
+  if (p.res >= 75) return 'Monitor; increase call frequency for B2 cases.';
+  if (p.res >= 65) return 'Field visit priority; tighten PTP 3-point lock.';
+  return 'High risk; deploy senior agent + legal notice for defaults.';
+}
+
+// Edit 3: Case-level drill-down
+function drillToCases(state, district, pincode, totalAccounts, avgRes) {
+  const el = document.getElementById('region-dd');
+  if (!el) return;
+  const segments = DATA.segments;
+  const agentNames = ['Priya Sharma','Ravi Kumar','Sneha Patil','Arun Mehta','Kavitha Nair','Suresh Yadav','Meena Joshi','Rajesh Pillai','Vikram Singh','Nisha Gupta'];
+  const numCases = Math.min(totalAccounts || 15, 15);
+  const cases = [];
+  for (let i = 0; i < numCases; i++) {
+    const seg = segments[Math.floor(Math.random() * segments.length)];
+    const dpd = Math.floor(Math.random() * 180) + 1;
+    const bucket = dpd <= 30 ? 'B0' : dpd <= 60 ? 'B1' : dpd <= 90 ? 'B2' : dpd <= 120 ? 'B3' : 'NPA';
+    const prevDelinq = Math.floor(Math.random() * 4);
+    const trackRecord = prevDelinq === 0 ? 'Clean' : prevDelinq === 1 ? '1 past default' : prevDelinq + ' past defaults';
+    const agent = agentNames[Math.floor(Math.random() * agentNames.length)];
+    const emiAmt = (Math.floor(Math.random() * 15) + 3) * 1000;
+    const resolved = Math.random() < (avgRes || 75) / 100;
+    const action = getCaseAction(seg.tag, dpd, prevDelinq, resolved);
+    cases.push({
+      id: pincode + '-' + String(i+1).padStart(3,'0'),
+      custType: seg.tag,
+      bucket: bucket,
+      dpd: dpd,
+      emi: '₹' + emiAmt.toLocaleString(),
+      prevDelinq: trackRecord,
+      agent: agent,
+      status: resolved ? 'Resolved' : (Math.random() < 0.4 ? 'PTP Pending' : 'Open'),
+      action: action
+    });
+  }
+
+  el.innerHTML = `
+    <div class="region-breadcrumb" style="flex-wrap:wrap;gap:5px">
+      <button class="back-btn" style="margin:0;padding:4px 10px;font-size:11.5px" onclick="backToIndia()">← India</button>
+      <span class="sep">›</span>
+      <button class="back-btn" style="margin:0;padding:4px 10px;font-size:11.5px" onclick="drillToState('${state}')">${state}</button>
+      <span class="sep">›</span>
+      <button class="back-btn" style="margin:0;padding:4px 10px;font-size:11.5px" onclick="drillToDistrict('${state}','${district}')">${district}</button>
+      <span class="sep">›</span>
+      <span class="active">PIN ${pincode} — Case Summary</span>
+    </div>
+    <p style="font-size:12px;color:var(--slate-500);margin-bottom:12px">Case-level performance for PIN ${pincode}. Showing ${cases.length} accounts with AI-recommended actions.</p>
+    <div class="table-scroll">
+    <table class="data-table">
+      <thead><tr><th>Case ID</th><th>Cust Type</th><th>Bucket</th><th>DPD</th><th>EMI</th><th>Track Record</th><th>Agent</th><th>Status</th><th>Recommended Action</th></tr></thead>
+      <tbody>
+      ${cases.map(c => {
+        const statusCls = c.status === 'Resolved' ? 'badge-green' : c.status === 'PTP Pending' ? 'badge-amber' : 'badge-red';
+        return `<tr>
+          <td style="font-size:11px">${c.id}</td>
+          <td style="font-size:10.5px;white-space:normal;max-width:100px">${c.custType}</td>
+          <td><span class="badge ${c.bucket==='B0'||c.bucket==='B1'?'badge-green':c.bucket==='B2'?'badge-amber':'badge-red'}">${c.bucket}</span></td>
+          <td style="font-weight:600;${c.dpd>90?'color:var(--red-500)':c.dpd>60?'color:var(--amber-500)':'color:var(--green-600)'}">${c.dpd}</td>
+          <td>${c.emi}</td>
+          <td style="font-size:10.5px">${c.prevDelinq}</td>
+          <td style="font-size:10.5px">${c.agent}</td>
+          <td><span class="badge ${statusCls}">${c.status}</span></td>
+          <td style="font-size:10.5px;color:var(--slate-600);max-width:180px;white-space:normal">${c.action}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>
+    </div>`;
+}
+
+function getCaseAction(custType, dpd, prevDelinq, resolved) {
+  if (resolved) return 'Resolved — confirm payment receipt and set auto-debit for next cycle.';
+  if (custType === 'Strategic Defaulters') return 'Escalate to legal; send formal notice. Agent should not negotiate further — transfer to senior desk.';
+  if (custType === 'Non-Contactable') return 'Initiate skip-trace + field visit within 48hrs. Agent to try alternate numbers and mark for supervisor follow-up.';
+  if (custType === 'Willing but Unable' && dpd < 60) return 'Offer EMI restructure or partial payment plan. Agent should explore hardship options before escalating.';
+  if (custType === 'Willing but Unable') return 'Propose moratorium or settlement. Agent should empathize and present flexible options with TL approval.';
+  if (custType === 'Repeat Bounce' && prevDelinq >= 2) return 'Field visit mandatory + payment mode switch to auto-debit. Agent must secure 3-point PTP with supervisor witness.';
+  if (custType === 'Repeat Bounce') return 'Automated reminder + same-day IVR follow-up post-PTP. Agent to confirm payment mode at closure.';
+  if (custType === 'High Intent / Low Ticket') return 'Push self-cure SMS with payment link. Agent call only if no response in 48hrs — low-touch, high-volume approach.';
+  if (dpd > 120) return 'NPA risk — escalate to collections manager. Legal notice if no response in 7 days. Agent to document all attempts.';
+  if (dpd > 90) return 'Priority field visit + daily call attempt. Agent should identify root cause and propose tailored solution.';
+  return 'Standard follow-up — agent to call within 24hrs, confirm PTP with date+amount+mode.';
+}
+
+function generateDistricts(state) {
+  return [{d:state+' Central',res:78,tgt:80,gap:'-2',pos:'₹4.2Cr',bounce:21,drr:91,ptp:52,bptp:22,unpaid:620,no_fb:7,lmpd:9},{d:state+' East',res:74,tgt:79,gap:'-5',pos:'₹3.1Cr',bounce:24,drr:88,ptp:48,bptp:26,unpaid:480,no_fb:9,lmpd:11},{d:state+' West',res:80,tgt:80,gap:'0',pos:'₹2.8Cr',bounce:19,drr:92,ptp:56,bptp:19,unpaid:380,no_fb:6,lmpd:7}];
+}
+function generatePincodes(district) {
+  return [{p:'100001',res:78,pos:'₹1.2Cr',accounts:218,ptp:50,bptp:24,drr:89},{p:'100004',res:72,pos:'₹0.9Cr',accounts:164,ptp:46,bptp:28,drr:86},{p:'100008',res:81,pos:'₹0.8Cr',accounts:141,ptp:54,bptp:20,drr:91}];
+}
+
+// ════════════════════════════════════════
+// AGENCY VIEW
+// ════════════════════════════════════════
+function getAgencyInsights(name) {
+  var a = DATA.agencies.find(function(x) { return x.n === name; });
+  if (!a) return null;
+  var gap = +(a.res - a.tgt).toFixed(1);
+  var isAbove = gap >= 0;
+  var isWeak = gap < -5;
+
+  // 1. Performance Overview
+  var overview = '';
+  if (isAbove) {
+    overview = a.n + ' in ' + a.state + ' is performing above target at ' + a.res + '% resolution (+' + gap + ' pts). Allocation of ' + a.pos + ' is well-utilized with DRR at ' + a.drr + '%. Monthly billing at ₹' + a.billing + 'L is trending ' + (a.billing_trend==='↑'?'upward':'stable') + '. With ' + a.visits + ' field visits and only ' + a.complaints + ' complaints, this agency is a benchmark performer.';
+  } else if (isWeak) {
+    overview = a.n + ' in ' + a.state + ' is significantly underperforming at ' + a.res + '% (' + gap + ' pts below target). With ' + a.pos + ' allocation, ROI is poor. DRR at ' + a.drr + '% is weak. ' + a.complaints + ' complaints and only ' + a.visits + ' field visits indicate quality and effort gaps. Billing at ₹' + a.billing + 'L is trending ' + (a.billing_trend==='↓'?'downward — costs not justified':'flat') + '.';
+  } else {
+    overview = a.n + ' in ' + a.state + ' is at ' + a.res + '% resolution (' + gap + ' pts vs target). Performance is ' + (gap >= -2 ? 'marginally' : 'moderately') + ' below target. Allocation ' + a.pos + ' with ' + a.visits + ' visits. Billing ₹' + a.billing + 'L. ' + a.complaints + ' complaints.';
+  }
+
+  // 2. What is going well
+  var goodParts = [];
+  if (a.ptp > 55) goodParts.push('PTP rate at ' + a.ptp + '% shows strong commitment generation');
+  if (a.bptp < 18) goodParts.push('broken PTP at ' + a.bptp + '% reflects tight follow-through discipline');
+  if (a.complaints < 10) goodParts.push('low complaint volume (' + a.complaints + ') indicates good customer handling');
+  if (a.visits > 300) goodParts.push('field visit count of ' + a.visits + ' shows strong ground coverage');
+  if (a.drr > 93) goodParts.push('DRR at ' + a.drr + '% shows healthy daily momentum');
+  if (a.billing_trend === '↑') goodParts.push('billing trending upward — growing operational capacity');
+  var goingWell = goodParts.length > 0 ? goodParts.join('. ') + '.' : 'Very few positives. Agency needs a fundamental reset on execution discipline.';
+
+  // 3. What to improve
+  var issues = [];
+  if (a.bptp > 24) issues.push('Broken PTP at ' + a.bptp + '% is critically high — agents accepting vague promises without 3-point lock (date, amount, mode).');
+  if (a.complaints > 20) issues.push('Customer complaints at ' + a.complaints + ' are elevated — review call recordings for compliance and pressure language issues.');
+  if (a.visits < 220) issues.push('Field visits at ' + a.visits + ' are below 250 benchmark. Low coverage means non-contactable accounts stay untouched.');
+  if (gap < 0) issues.push('Resolution gap of ' + Math.abs(gap) + ' pts is concentrated in ' + (a.bptp > 25 ? 'B2/B3 buckets where broken PTP is highest' : 'accounts where initial contact quality is poor') + '.');
+  if (a.billing_trend === '↓') issues.push('Billing trending down at ₹' + a.billing + 'L — capacity may be shrinking or agency is cherry-picking easier accounts.');
+  var improve = issues.length > 0 ? issues.join(' ') : 'Solid performance. Focus on pushing resolution above ' + (a.tgt + 2) + '% by tightening PTP closure further.';
+
+  // 4. Manager actions
+  var actions = '';
+  if (isWeak) {
+    actions = '(1) Issue formal performance notice — 15-day improvement deadline. (2) Audit last 50 calls for compliance violations and PTP quality. (3) Mandate 3-point PTP training within 5 days. (4) Increase visits to ' + (a.visits + 100) + '+ focusing on ' + a.state + ' districts with worst broken PTP. (5) If no improvement in 15 days, reallocate ₹' + (parseFloat(a.pos.replace(/[₹Cr]/g,''))*0.4).toFixed(1) + 'Cr to top agencies. (6) Recommendation to agency: replace bottom 20% of field agents and invest in B2/B3 specialized training.';
+  } else if (!isAbove) {
+    actions = '(1) Weekly broken PTP review with agency TL — target 3-pt BPTP reduction in 30 days. (2) Share Saffron\'s PTP protocol as benchmark (16.4% BPTP). (3) Increase visits in weakest ' + a.state + ' districts by 20%. (4) Review allocation mix — reduce B3/NPA over-representation. (5) Recommendation to agency: invest in issue identification training and consider senior agent deployment for high-value accounts.';
+  } else {
+    actions = '(1) Recognize as top performer — consider ₹' + (parseFloat(a.pos.replace(/[₹Cr]/g,''))*0.25).toFixed(1) + 'Cr allocation increase. (2) Request best-practice sharing with underperformers. (3) Explore expanding to adjacent geographies. (4) Recommendation to agency: maintain visit frequency, invest in digital channels to reduce per-account cost, and pilot AI-assisted call scoring.';
+  }
+
+  return [
+    {title:'📊 Performance Overview', text:overview, color:'#1e5c3a', bg:'#f0faf3'},
+    {title:'✅ What Is Going Well', text:goingWell, color:'#22c55e', bg:'#f0fdf4'},
+    {title:'⚠️ What Needs Improvement', text:improve, color:'#d97706', bg:'#fffbeb'},
+    {title:'📋 Manager Actions & Recommendations', text:actions, color:'#334155', bg:'#f1f5f9'},
+  ];
+}
+
+function showAgencyInsight(name) {
+  var insights = getAgencyInsights(name);
+  if (!insights) { showToast('Agency not found'); return; }
+  var modal = document.getElementById('agency-insight-modal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'agency-insight-modal';
+    modal.style.cssText = 'position:fixed;inset:0;z-index:600;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);padding:16px';
+    document.body.appendChild(modal);
+  }
+  modal.style.display = 'flex';
+  var cards = insights.map(function(ins) {
+    return '<div style="margin-bottom:12px;padding:14px;background:'+ins.bg+';border-left:3px solid '+ins.color+';border-radius:8px">' +
+      '<h4 style="font-size:13px;font-weight:700;color:'+ins.color+';margin-bottom:6px">'+ins.title+'</h4>' +
+      '<p style="font-size:12.5px;color:#334155;line-height:1.6">'+ins.text+'</p></div>';
+  }).join('');
+  modal.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:600px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)">' +
+    '<div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center">' +
+      '<div><h3 style="font-size:16px;font-weight:700;color:#0f172a">AI Insights — '+name+'</h3><p style="font-size:12px;color:#64748b;margin-top:2px">Performance analysis and recommendations</p></div>' +
+      '<button onclick="document.getElementById(\'agency-insight-modal\').style.display=\'none\'" style="background:none;border:none;font-size:20px;color:#64748b;cursor:pointer;padding:4px">✕</button>' +
+    '</div><div style="padding:16px 20px">'+cards+'</div></div>';
+  modal.onclick = function(e) { if (e.target === modal) modal.style.display = 'none'; };
+}
+
+function renderAgency() {
+  const el = document.getElementById('tab-agency');
+  const ak = getFilteredAgencyKPI();
+  const agencies = ak.filteredAgencies;
+  const fl = getFilters();
+  const top3 = [...agencies].sort((a,b)=>b.res-a.res).slice(0,3);
+  const bot3 = [...agencies].sort((a,b)=>a.res-b.res).slice(0,3);
+  el.innerHTML = `
+<div class="page-header"><h1>Agency View</h1><p>Agency allocation, effectiveness and optimization — ${fl.month} · ${fl.geo}</p></div>
+<div class="kpi-strip">
+  ${kpiCard('Total Agencies', ak.count, 'Active this month', 'neu')}
+  ${kpiCard('Avg Resolution', ak.avgRes+'%', 'agency_res', true)}
+  ${kpiCard('Avg Broken PTP', ak.avgBptp+'%', 'agency_bptp', false)}
+  ${kpiCard('Total Allocation', '₹'+ak.totalAlloc+'Cr', 'agency_alloc', true)}
+  ${kpiCard('Avg DRR', ak.avgDrr+'%', 'agency_drr', true)}
+</div>
+<div class="grid-65-35 mb-18">
+  <div class="card">
+    <div class="card-header"><h3>Agency Performance Table</h3></div>
+    <div class="card-body table-scroll" style="padding:0">
+      <table class="data-table">
+        <thead><tr><th>Agency</th><th>State</th><th>Alloc</th><th>Res %</th><th>Target</th><th>PTP</th><th>BPTP</th><th>DRR</th><th>Complaints</th><th>Billing (₹L)</th><th>Bill Trend</th><th>Visits</th><th>Trend</th><th></th></tr></thead>
+        <tbody>
+        ${agencies.map(a=>`<tr>
+          <td>${a.n}</td><td>${a.state}</td><td>${a.pos}</td>
+          <td>${pctBadge(a.res,a.tgt)}</td><td>${a.tgt}%</td>
+          <td>${a.ptp}%</td>
+          <td style="${a.bptp>25?'color:var(--red-500)':a.bptp>20?'color:var(--amber-500)':'color:var(--green-600)'};font-weight:600">${a.bptp}%</td>
+          <td><span class="drr-pill">${a.drr}%</span></td>
+          <td style="${a.complaints>20?'color:var(--red-500)':a.complaints>10?'color:var(--amber-500)':'color:var(--green-600)'};font-weight:600">${a.complaints}</td>
+          <td>${a.billing}</td>
+          <td style="font-size:16px;${a.billing_trend==='↑'?'color:var(--green-500)':a.billing_trend==='↓'?'color:var(--red-500)':'color:var(--amber-500)'}">${a.billing_trend}</td>
+          <td>${a.visits}</td>
+          <td style="font-size:16px;${a.trend==='↑'?'color:var(--green-500)':a.trend==='↓'?'color:var(--red-500)':'color:var(--amber-500)'}">${a.trend}</td>
+          <td><button class="btn-sm btn-green" onclick="showAgencyInsight('${a.n.replace(/'/g,"\\'")}')">Insights</button></td>
+        </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:12px">
+    <div class="card">
+      <div class="card-header"><h3>Bottom Agencies</h3></div>
+      <div class="card-body" style="padding:8px 14px">
+      ${bot3.map((a,i)=>`<div class="top-bottom-item"><div class="rank-num" style="background:var(--red-100);color:var(--red-500)">${i+1}</div><div><div class="name">${a.n}</div><div class="sub">${a.state} · ${a.pos}</div></div><span class="pct pct-red">${a.res}%</span></div>`).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h3>Top Agencies</h3></div>
+      <div class="card-body" style="padding:8px 14px">
+      ${top3.map((a,i)=>`<div class="top-bottom-item"><div class="rank-num" style="background:var(--green-100);color:var(--green-700)">${i+1}</div><div><div class="name">${a.n}</div><div class="sub">${a.state} · ${a.pos}</div></div><span class="pct pct-green">${a.res}%</span></div>`).join('')}
+      </div>
+    </div>
+  </div>
+</div>
+<div class="card">
+  <div class="card-header"><h3>Agency Intelligence & Reallocation</h3></div>
+  <div class="card-body">
+    ${DATA.agency_insights.map(i=>`<div class="insight-item"><h4>${i.head}</h4><p>${i.body}</p></div>`).join('')}
+  </div>
+</div>`;
+}
+
+// ════════════════════════════════════════
+// EXCEPTION REPORTING (preserved)
+// ════════════════════════════════════════
+function renderException() {
+  const el = document.getElementById('tab-exception');
+  const excs = DATA.exceptions;
+  const critical = excs.filter(e=>e.sev==='critical');
+  const warn = excs.filter(e=>e.sev==='warn');
+  const info = excs.filter(e=>e.sev==='info');
+  el.innerHTML = `
+<div class="page-header flex-between">
+  <div><h1>Exception Reporting</h1><p>Action-focused exception cards grouped by severity.</p></div>
+  <div class="flex-gap"><span class="badge badge-red">${critical.length} Critical</span><span class="badge badge-amber">${warn.length} Watch</span><span class="badge badge-blue">${info.length} Info</span></div>
+</div>
+<div class="section-title" style="margin-bottom:10px">🔴 Critical Exceptions</div>
+${critical.map(e=>excCard(e)).join('')}
+<div class="section-title" style="margin-top:16px;margin-bottom:10px">🟡 Watch Exceptions</div>
+${warn.map(e=>excCard(e)).join('')}
+<div class="section-title" style="margin-top:16px;margin-bottom:10px">🔵 Informational</div>
+${info.map(e=>excCard(e)).join('')}`;
+}
+
+function excCard(e) {
+  return `<div class="exc-card ${e.sev==='critical'?'critical':e.sev==='warn'?'warn':'info'}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">
+      <h4>${e.title}</h4><span class="badge badge-slate">${e.cat}</span>
+    </div>
+    <p>${e.detail}</p>
+    <div class="exc-card-actions">
+      <button class="btn-sm btn-green" onclick="askAI('${e.title}')">Investigate with AI</button>
+    </div>
+  </div>`;
+}
+
+function investigate(title) { showToast(`Investigating: "${title.substring(0,50)}…"`); }
+function applyExcView(title) { showToast(`View applied for "${title.substring(0,40)}…"`); }
+function askAI(title) {
+  toggleChat(true);
+  setTimeout(() => {
+    document.getElementById('chat-input').value = 'Explain this exception: ' + title;
+    sendChat();
+  }, 300);
+}
+
+// ════════════════════════════════════════
+// GLOBAL BUTTONS
+// ════════════════════════════════════════
+function applyView() {
+  const f = getFilters();
+  showToast(`View applied: ${f.month} · ${f.geo} · ${f.bucket} · ${f.baseline}`);
+  document.querySelectorAll('#content > div').forEach(d => d.dataset.rendered = '');
+  renderTab(activeTab);
+}
+function downloadReport() { showToast('Generating PDF report…'); }
+function showToast(msg) {
+  let toast = document.getElementById('toast');
+  if (!toast) { toast = document.createElement('div'); toast.id='toast'; toast.style.cssText='position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:var(--slate-900);color:#fff;padding:10px 20px;border-radius:20px;font-size:12.5px;z-index:999;box-shadow:var(--shadow-lg);max-width:400px;text-align:center;opacity:0;transition:opacity .3s'; document.body.appendChild(toast); }
+  toast.textContent = msg; toast.style.opacity='1';
+  setTimeout(()=>toast.style.opacity='0',3000);
+}
+
+// ════════════════════════════════════════
+// FIX 5: AI-POWERED CHATBOT
+// ════════════════════════════════════════
+const CHAT_CHIPS = {
+  portfolio: ['Why are we below target?', 'What should leadership do?', 'Where is the fastest recovery?', 'Summarize in 5 bullets', 'Compare North vs South'],
+  contact: ['What is causing weak RPC?', 'Which agent needs coaching?', 'How to fix broken PTP?', 'Summarize contact centre'],
+  field: ['Worst field pocket?', 'What is causing UP underperformance?', 'Summarize field view', 'Highest broken PTP state?'],
+  agency: ['Which agency should lose allocation?', 'Which agencies should grow?', 'Summarize agency view'],
+  exception: ['Explain biggest exception', 'What needs urgent action?', 'Summarize all exceptions'],
+};
+
+function initChat() {
+  const msgs = document.getElementById('chat-messages');
+  msgs.innerHTML = `<div class="chat-msg bot">Hi! I'm your Portfolio AI Assistant powered by AI. I have full context on the 2W collections portfolio for Apr 2026.\n\nAsk me anything — performance analysis, comparisons, recommendations, or deep dives into any metric.</div>`;
+  updateChatChips();
+}
+
+function updateChatContext() {
+  const labels = { portfolio:'Portfolio View', contact:'Contact Centre', field:'Field Performance', agency:'Agency View', exception:'Exception Reporting' };
+  document.getElementById('chat-context-label').textContent = (labels[activeTab]||'') + ' · Apr 2026';
+  updateChatChips();
+}
+
+function updateChatChips() {
+  const chips = document.getElementById('chat-chips');
+  const suggestions = CHAT_CHIPS[activeTab] || CHAT_CHIPS.portfolio;
+  chips.innerHTML = suggestions.map(s=>{
+    const escaped = s.replace(/'/g,"&#39;");
+    return `<button class="chat-chip" onclick="sendChatMsg('${escaped}')">${s}</button>`;
+  }).join('');
+}
+
+function toggleChat(forceOpen) {
+  chatOpen = forceOpen === true ? true : !chatOpen;
+  document.getElementById('chat-panel').classList.toggle('open', chatOpen);
+}
+
+// Build full context for the AI
+function buildChatContext() {
+  const ctx = {
+    currentTab: activeTab,
+    filters: {
+      month: document.getElementById('month-filter')?.value,
+      geo: document.getElementById('geo-filter')?.value,
+      bucket: document.getElementById('bucket-filter')?.value,
+    },
+    portfolioSummary: DATA.summary,
+    buckets: DATA.buckets,
+    zones: DATA.zones,
+    segments: DATA.segments,
+    fieldKPI: DATA.field.kpi,
+    states: DATA.field.states.map(s=>({state:s.s,res:s.res,tgt:s.tgt,gap:s.gap,ptp:s.ptp,bptp:s.bptp})),
+    agencies: DATA.agencies.map(a=>({name:a.n,state:a.state,res:a.res,tgt:a.tgt,bptp:a.bptp})),
+    ccKPI: DATA.cc.kpi,
+    centres: DATA.cc.centres,
+    exceptions: DATA.exceptions,
+    selectedState: selectedState,
+    selectedAgent: selectedAgent,
+  };
+  return JSON.stringify(ctx);
+}
+
+// AI Chat — uses Anthropic API via artifact integration
+async function getAIResponse(question) {
+  const contextStr = buildChatContext();
+  const systemPrompt = `You are an expert 2-Wheeler collections portfolio analyst AI assistant. You have full access to the following real-time dashboard data:
+
+${contextStr}
+
+User is currently on the "${activeTab}" tab.
+
+Instructions:
+- Answer questions about collections performance, trends, agencies, contact centres, field performance, exceptions
+- Be specific with numbers from the data
+- Provide actionable insights and recommendations
+- Use bullet points for clarity
+- Compare metrics against targets
+- Highlight risks and opportunities
+- Keep responses concise but comprehensive (max 200 words)
+- Use ₹ for currency, % for percentages
+- If asked about specific agents, agencies, states, or districts, reference the specific data
+- Never say you don't have data — use the context provided`;
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [{ role: "user", content: question }],
+      })
+    });
+    
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+    const data = await response.json();
+    const text = data.content?.map(item => item.type === 'text' ? item.text : '').filter(Boolean).join('\n') || 'No response generated.';
+    return text;
+  } catch (err) {
+    console.error('AI Chat error:', err);
+    // Fallback to intelligent local response
+    return buildLocalResponse(question);
+  }
+}
+
+// Intelligent local fallback
+function buildLocalResponse(query) {
+  const q = query.toLowerCase();
+  const d = DATA.summary;
+  const f = DATA.field;
+  
+  // Portfolio questions
+  if (q.includes('below target') || q.includes('why') && q.includes('target')) {
+    return `**Portfolio is trailing target by ${Math.abs(d.forecast_gap)} pts** (${d.collection_pct}% vs 84.4% target).\n\n**Primary drags:**\n• North zone: -3.9 pts below target (worst). NorthEdge + Stride agencies underperforming.\n• East zone: -3.7 pts — Bihar contactability at 40.1% PTP.\n• B2/B3 roll-forward at 14.9%/18.4% aging stock into NPA.\n\n**Actions:** North field reallocation, agency review for Stride/NorthEdge, scale High Intent self-cure channel.`;
+  }
+  if (q.includes('leadership') || q.includes('action') || q.includes('should')) {
+    return `**Leadership Actions This Week:**\n\n🔴 **Urgent (0–3 days):**\n• North zone emergency review — reduce NorthEdge + Stride allocation by ₹2.5Cr\n• Delhi South + Kanpur field escalation\n• Bihar skip-tracing for non-contactable accounts\n\n🟡 **This Week:**\n• CC broken PTP fix: same-day IVR follow-up\n• Scale High Intent self-cure SMS campaign\n\n🟢 **Strategic:**\n• SureStep Bihar — formal performance notice\n• B2/B3 roll-forward containment plan`;
+  }
+  if (q.includes('recovery') || q.includes('opportunity') || q.includes('fastest')) {
+    return `**Fastest Recovery Opportunities:**\n\n1. **High Intent / Low Ticket** — 22,100 accounts at 86.8% res. Scale self-cure SMS to add 0.3–0.5 pts.\n2. **Agency reallocation** — ₹3Cr from bottom 3 to top 3 = 0.7–0.9 pts gain.\n3. **NPA bucket in South** — 52% res vs 47.3% portfolio avg. Apply southern methodology elsewhere.\n4. **Delhi CC list refresh** — 3–5 RPC points recoverable with DNC scrub + fresh numbers.`;
+  }
+  if (q.includes('summarize') || q.includes('summary') || q.includes('bullet')) {
+    return `**Portfolio Summary — Apr 2026:**\n\n1. Collection at ${d.collection_pct}%, trailing target by ${Math.abs(d.forecast_gap)} pts\n2. South (87.4%) is the benchmark — Tamil Nadu + Karnataka driving self-cure\n3. North (79.1%) is the primary drag — agency + field gaps in UP and Delhi\n4. B2/B3 roll-forward at 14.9–18.4% = structural NPA risk\n5. High Intent segment is cheapest recovery lever — scale immediately\n6. DRR at ${d.drr}% softening — NPA bucket needs momentum`;
+  }
+  if (q.includes('north') && q.includes('south') || q.includes('compare')) {
+    return `**North vs South — Apr 2026:**\n\n| Metric | North | South |\n|---|---|---|\n| Resolution | 79.1% | 87.4% |\n| Target | 83.0% | 85.0% |\n| Gap | −3.9 pts | +2.4 pts |\n| Bounce | 20.6% | 13.2% |\n| DRR | 93.1% | 96.8% |\n\nSouth leads due to better agency quality (Saffron vs NorthEdge), stronger CC in Chennai, and higher self-cure rates.`;
+  }
+  if (q.includes('agent') || q.includes('coaching') || q.includes('worst agent')) {
+    return `**Agent Coaching Priorities:**\n\n🔴 **Suresh Yadav (Rank #22, Delhi CC):** Compliance risk — pressure language detected. BPTP at 28%. Immediate PIP + bench.\n🔴 **Arun Mehta (Rank #18, Delhi CC):** Need Identification at 4.8/10. Fails to explore payment barriers. Shadow Priya Sharma for 2 sessions.\n✅ **Priya Sharma (Rank #1, Chennai CC):** Benchmark agent at 91.2% resolution. Use call recordings for team training.`;
+  }
+  if (q.includes('rpc') || q.includes('contact rate')) {
+    return `**RPC is 40.6% portfolio-wide.**\n\nDelhi CC at 35% vs Chennai's 46% — 11-pt gap.\n\n**Root causes:**\n1. Stale allocation data in Delhi — outdated mobile numbers\n2. Login hygiene gap — Delhi at 74% vs 86% Chennai\n\n**Fix:** List refresh + DNC scrub for Delhi CC could recover 3–5 RPC points within a fortnight.`;
+  }
+  if (q.includes('broken ptp') || q.includes('ptp')) {
+    return `**Broken PTP at ${DATA.cc.kpi.broken_ptp}% — biggest revenue leakage.**\n\nPattern: agents securing vague PTPs without date+amount+reference.\n\n**Worst:** Suresh Yadav (28%), Arun Mehta (22%)\n\n**Fix:**\n1. IVR/SMS confirmation within 1 hour of PTP\n2. Mandatory 3-point PTP lock (date, amount, mode)\n3. Daily broken PTP review by team lead`;
+  }
+  if (q.includes('field') || q.includes('up') || q.includes('delhi south') || q.includes('hotspot')) {
+    return `**Field Hotspots:**\n\n🔴 **Delhi South:** 71.2% res (tgt 81%). 14.2% LMPD breach, 31% no-feedback. Needs supervisor reallocation.\n🔴 **Kanpur:** 29.4% broken PTP — highest in portfolio. Vague verbal commitments. Needs call audit.\n🔴 **Bihar:** 40.1% PTP rate — high non-contactable base. Skip-tracing priority.\n🔴 **UP overall:** -7.9 pts below target across 5 districts.`;
+  }
+  if (q.includes('agency') || q.includes('stride') || q.includes('surestep')) {
+    return `**Agency Performance:**\n\n🔴 **Worst:** SureStep Bihar (61.2%), Stride Services UP (66.9%), NorthEdge Delhi (68.4%)\n✅ **Best:** QuickRecov Kerala (88.4%), Saffron TN (82.6%), Delta Karnataka (80.1%)\n\n**Action:** Shift ₹3Cr from bottom 3 → top 3. Expected gain: 0.7–0.9 pts portfolio-wide.`;
+  }
+  if (q.includes('exception')) {
+    return `**Exceptions — Apr 2026:**\n\n🔴 **Critical:**\n1. NPA Roll-Forward UP — ₹2.8Cr at write-off risk\n2. SureStep Bihar — 3rd month below SLA\n3. Delhi South LMPD — 14.2% breach\n\n🟡 **Watch:**\n4. B2/B3 East zone roll-forward\n5. Delhi CC RPC below threshold\n6. North PTP conversion gap\n\n**Priority:** UP NPA escalation, SureStep notice, Delhi South supervisor redeployment.`;
+  }
+  
+  return `Based on the current ${activeTab} view data:\n\n• Portfolio at ${d.collection_pct}% collection, -${Math.abs(d.forecast_gap)} pts vs target\n• Biggest drag: North zone (-3.9 pts) and East (-3.7 pts)\n• Best recovery lever: High Intent self-cure channel\n• Top risk: B2/B3 roll-forward → NPA aging\n\nTry asking about specific zones, agents, agencies, or field performance for detailed analysis.`;
+}
+
+function sendChat() {
+  const input = document.getElementById('chat-input');
+  const q = input.value.trim();
+  if (!q) return;
+  sendChatMsg(q);
+  input.value = '';
+}
+
+async function sendChatMsg(q) {
+  const msgs = document.getElementById('chat-messages');
+  msgs.innerHTML += `<div class="chat-msg user">${q}</div>`;
+  msgs.innerHTML += `<div class="chat-msg bot chat-typing"><span></span><span></span><span></span></div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+
+  try {
+    const response = await getAIResponse(q);
+    const typing = msgs.querySelector('.chat-typing');
+    if (typing) typing.remove();
+    const formatted = response.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>').replace(/\|/g,' | ');
+    msgs.innerHTML += `<div class="chat-msg bot">${formatted}</div>`;
+  } catch (err) {
+    const typing = msgs.querySelector('.chat-typing');
+    if (typing) typing.remove();
+    msgs.innerHTML += `<div class="chat-msg bot">I encountered an issue. Let me try with my local knowledge...<br><br>${buildLocalResponse(q).replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n\n/g,'<br><br>').replace(/\n/g,'<br>')}</div>`;
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+renderTab('portfolio');
+initChat();
+</script>
+</body>
+</html>
